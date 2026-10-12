@@ -54,6 +54,11 @@ Para ver recursos avançados (rolagem, gestos `swipe`, repetição `repeat`, bus
 uv run androflow test flows/settings_advanced.yaml
 ```
 
+> **Atenção ao idioma do dispositivo:** Como os fluxos de demonstração interagem com o app nativo de Configurações do Android, atente-se ao idioma configurado no aparelho:
+>
+> - `flows/settings_search.yaml`: requer o emulador/dispositivo em **inglês** (`en-US`).
+> - `flows/settings_advanced.yaml`: requer o emulador/dispositivo em **português do Brasil** (`pt-BR`).
+
 Se houver mais de um dispositivo, informe o serial:
 
 ```bash
