@@ -1,6 +1,6 @@
 # AndroFlow
 
-Um motor em Python de testes de interface Android dirigidos por YAML, usando `uv` e ADB. Inspirado na simplicidade e na sintaxe declarativa do [Maestro](https://maestro.mobile.dev/).
+Um motor em Python de testes de interface Android dirigidos por YAML, usando `uv` e ADB. Inspirado na simplicidade e na sintaxe declarativa do [Maestro](https://maestro.mobile.dev/). Opera exclusivamente através do binário nativo `adb` do computador, sem exigir a instalação de daemons em segundo plano ou APKs auxiliares dentro do dispositivo.
 
 > **Nota:** O AndroFlow é um projeto independente focado exclusivamente em Android via ADB, sem vínculo com o Maestro ou com a mobile.dev. A localização de elementos usa a hierarquia XML acessível do Android; telas que não expõem elementos acessíveis podem exigir seletores por coordenadas ou outra estratégia.
 
@@ -48,6 +48,12 @@ Execute:
 uv run androflow test flows/settings_search.yaml
 ```
 
+Para ver recursos avançados (rolagem, gestos `swipe`, repetição `repeat`, busca por `regex: true`, foco automático, transliteração de acentos, `eraseText` e `hideKeyboard`), execute o segundo fluxo:
+
+```bash
+uv run androflow test flows/settings_advanced.yaml
+```
+
 Se houver mais de um dispositivo, informe o serial:
 
 ```bash
@@ -64,7 +70,7 @@ uv run androflow --serial emulator-5554 test flows/settings_search.yaml
 - `launchApp`: inicia o app via `monkey` usando `appId` (suporta `stopApp: true/false` e `clearState: true/false`).
 - `stopApp`: força a parada do app via `am force-stop`.
 - `tapOn`: toca em um elemento localizado por `text`, `resourceId`, `contentDesc` ou `id`; também aceita `point: [x, y]`, `point: "x, y"` ou percentual `point: "50%, 50%"`.
-- `inputText`: digita texto no campo atualmente focado.
+- `inputText`: digita texto no campo focado ou recebe um seletor para tocar e focar automaticamente (`{id: "campo", text: "..."}`). Suporta `transliterate: true` para normalizar acentos.
 - `eraseText`: apaga texto do campo focado (padrão 50 caracteres; ou `- eraseText: 10`).
 - `pressKey`: aciona teclas de sistema como `Enter`, `Back`, `Home`, `Tab`, `VolumeUp`, `VolumeDown`.
 - `hideKeyboard`: fecha o teclado virtual se estiver aberto.
@@ -102,6 +108,12 @@ uv run androflow --serial emulator-5554 test flows/settings_search.yaml
     direction: DOWN
 
 - pressKey: Enter
+
+# Digitação com seletor embutido (foco automático) e transliteração de acentos:
+- inputText:
+    id: "search_input"
+    text: "Cartão de Crédito"
+    transliterate: true
 ```
 
 Chaves desconhecidas no seletor (ex.: `txt:`) geram erro de validação antecipada.
@@ -114,10 +126,8 @@ Chaves desconhecidas no seletor (ex.: `txt:`) geram erro de validação antecipa
 
 ## Limitações conhecidas
 
-- A hierarquia XML depende de o app expor componentes acessíveis no Android.
-- `inputText` envia texto ao campo que já estiver focado; não localiza nem foca automaticamente um campo.
-- `inputText` só suporta caracteres ASCII (limitação do `adb shell input text`): acentos e emojis geram erro.
-- O AndroFlow é focado exclusivamente em Android via ADB, sem intermediários ou daemons compilados.
+- A hierarquia XML depende de o app expor componentes acessíveis no Android (jogos e Canvas desenham diretamente na tela sem nós de acessibilidade).
+- O comando nativo do Android (`adb shell input text`) suporta apenas caracteres ASCII. O AndroFlow oferece `transliterate: true` (no comando ou no cabeçalho do fluxo) para converter automaticamente caracteres acentuados (ex.: `"Cartão"` para `"Cartao"`). Emojis e alfabetos não-latinos não são suportados nativamente pelo ADB sem um APK auxiliar.
 
 ## Desenvolvimento
 

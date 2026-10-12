@@ -119,20 +119,36 @@ appId: com.suaempresa.seuapp
 
 ---
 
-### 3.2 Campos de texto: sempre focar antes de digitar
+### 3.2 Campos de texto e digitação (`inputText`)
 
-O comando `inputText` do AndroFlow envia eventos de texto via `adb shell input text` para o campo que já detém o foco no sistema operacional. No React Native, é **obrigatório** tocar no campo antes de chamar `inputText`:
+O AndroFlow permite preencher campos de texto de duas formas:
+
+#### Forma recomendada (Foco automático com seletor):
+
+Você pode passar o seletor diretamente para o `inputText`. O AndroFlow localiza o elemento, toca no centro dele para abrir o cursor/teclado e digita em seguida:
 
 ```yaml
-# 1. Toca no campo para abrir o foco / teclado
-- tapOn:
-    resourceId: "input_email"
+- inputText:
+    id: "input_email"
+    text: "carlos@exemplo.com"
+```
 
-# 2. Digita o texto
+#### Forma simples (campo já focado):
+
+Caso o campo já esteja focado por uma etapa anterior:
+
+```yaml
 - inputText: "carlos@exemplo.com"
 ```
 
-> **Limitação de Caracteres:** O `adb shell input text` aceita apenas caracteres da tabela ASCII básica (sem acentos nem emojis). Utilize strings simples em testes automatizados (ex.: `senha123`, `teste_qa`).
+> **Acentos e Transliteração:** O comando nativo `adb shell input text` aceita apenas caracteres ASCII. Para preencher dados com acentos (ex.: nomes e endereços brasileiros) sem quebrar o teste, use a flag `transliterate: true`:
+>
+> ```yaml
+> - inputText:
+>     id: "input_nome"
+>     text: "João da Silva"
+>     transliterate: true # Converte automaticamente para "Joao da Silva"
+> ```
 
 ---
 
@@ -153,17 +169,17 @@ No modo de desenvolvimento (Debug com Metro bundler), o aplicativo pode demorar 
 
 ---
 
-### 3.4 Fechando o teclado virtual
+### 3.4 Fechando o teclado virtual (`hideKeyboard`)
 
-Em telas com botões inferiores (ex.: "Continuar" ou "Entrar"), o teclado virtual do Android pode sobrepor o elemento clicável. Use o comando `back` para recolher o teclado antes de tocar no botão:
+Em telas com botões inferiores (ex.: "Continuar" ou "Entrar"), o teclado virtual do Android pode sobrepor o elemento clicável. Use o comando `hideKeyboard` (ou `back`) para recolher o teclado antes de tocar no botão:
 
 ```yaml
+- inputText:
+    id: "input_senha"
+    text: "segredo123"
+- hideKeyboard
 - tapOn:
-    resourceId: "input_senha"
-- inputText: "segredo123"
-- back # Fecha o teclado virtual
-- tapOn:
-    resourceId: "btn_login"
+    id: "btn_login"
 ```
 
 ---
@@ -175,7 +191,7 @@ O React Native utiliza virtualização de listas para performance. Componentes q
 ### Boas práticas:
 
 1. **Dados de mock controlados:** Em cenários de teste, ordene ou limite a lista de teste para que os itens que você precisa validar estejam inicialmente visíveis na viewport.
-2. **Rolagem:** Caso precise alcançar elementos abaixo da dobra, utilize coordenadas ou ajuste a exibição para caber na densidade do emulador.
+2. **Rolagem:** Caso precise alcançar elementos abaixo da dobra, utilize os comandos nativos `- scroll` (rolagem padrão para baixo) ou `- swipe: { direction: UP }` para navegar na lista.
 
 ---
 
@@ -266,21 +282,22 @@ appId: com.meuapp
 ---
 - launchApp
 - waitFor:
-    resourceId: "screen_login"
+    id: "screen_login"
     timeout: 10
 
-- tapOn:
-    resourceId: "input_email"
-- inputText: "carlos@teste.com"
+# Foco automático e digitação em um único comando:
+- inputText:
+    id: "input_email"
+    text: "carlos@teste.com"
+
+- inputText:
+    id: "input_password"
+    text: "senhaSegura123"
+
+- hideKeyboard
 
 - tapOn:
-    resourceId: "input_password"
-- inputText: "senhaSegura123"
-
-- back # Fecha o teclado virtual se estiver cobrindo a tela
-
-- tapOn:
-    resourceId: "btn_submit"
+    id: "btn_submit"
 
 - takeScreenshot: "apos-login.png"
 ```

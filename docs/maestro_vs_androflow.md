@@ -8,15 +8,16 @@ Este documento detalha as diferenças entre as duas abordagens e as motivações
 
 ## 1. Tabela Comparativa Rápida
 
-| Ação / Recurso             | AndroFlow (Enxuto)                     | Maestro (Legado)                                                                                                       | Vantagem do AndroFlow                                                         |
-| :------------------------- | :------------------------------------- | :--------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------- |
-| **Aguardar elemento**      | `- waitFor: { id: "btn", timeout: 5 }` | `- extendedWaitUntil:`<br>&nbsp;&nbsp;`visible:`<br>&nbsp;&nbsp;&nbsp;&nbsp;`id: "btn"`<br>&nbsp;&nbsp;`timeout: 5000` | Menos níveis de indentação; comando direto e autoexplicativo.                 |
-| **Pausar fluxo**           | `- sleep: 2` (ou `"500ms"`)            | `- sleep: 2000`                                                                                                        | Segundos são a unidade natural do pensamento humano.                          |
-| **Timeout de espera**      | `timeout: 5`                           | `timeout: 5000`                                                                                                        | Conciso; elimina repetições de zeros (`000`).                                 |
-| **Busca parcial de texto** | `text: "Tema", contains: true`         | `text: ".*Tema.*"`                                                                                                     | Não exige conhecimento de regex nem escape de caracteres.                     |
-| **Busca por regex**        | `text: "ID \\d+", regex: true`         | `text: "ID \\d+"`                                                                                                      | Intenção explícita; evita falso-positivos de regex acidental.                 |
-| **Seletor de ID**          | `id:` ou `resourceId:`                 | Apenas `id:`                                                                                                           | Flexibilidade entre forma curta (`id`) e nome técnico Android (`resourceId`). |
-| **Toque por coordenadas**  | `point: [100, 200]` ou `"50%,50%"`     | `point: "50%,50%"`                                                                                                     | Aceita lista de inteiros ou strings percentuais relativas à tela.             |
+| Ação / Recurso             | AndroFlow (Enxuto)                                                           | Maestro (Legado)                                                                                                       | Vantagem do AndroFlow                                                         |
+| :------------------------- | :--------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------- |
+| **Aguardar elemento**      | `- waitFor: { id: "btn", timeout: 5 }`                                       | `- extendedWaitUntil:`<br>&nbsp;&nbsp;`visible:`<br>&nbsp;&nbsp;&nbsp;&nbsp;`id: "btn"`<br>&nbsp;&nbsp;`timeout: 5000` | Menos níveis de indentação; comando direto e autoexplicativo.                 |
+| **Pausar fluxo**           | `- sleep: 2` (ou `"500ms"`)                                                  | `- sleep: 2000`                                                                                                        | Segundos são a unidade natural do pensamento humano.                          |
+| **Timeout de espera**      | `timeout: 5`                                                                 | `timeout: 5000`                                                                                                        | Conciso; elimina repetições de zeros (`000`).                                 |
+| **Busca parcial de texto** | `text: "Tema", contains: true`                                               | `text: ".*Tema.*"`                                                                                                     | Não exige conhecimento de regex nem escape de caracteres.                     |
+| **Busca por regex**        | `text: "ID \\d+", regex: true`                                               | `text: "ID \\d+"`                                                                                                      | Intenção explícita; evita falso-positivos de regex acidental.                 |
+| **Seletor de ID**          | `id:` ou `resourceId:`                                                       | Apenas `id:`                                                                                                           | Flexibilidade entre forma curta (`id`) e nome técnico Android (`resourceId`). |
+| **Digitação em campo**     | `- inputText:`<br>&nbsp;&nbsp;`id: "email"`<br>&nbsp;&nbsp;`text: "a@b.com"` | `- tapOn:`<br>&nbsp;&nbsp;`id: "email"`<br>`- inputText: "a@b.com"`                                                    | Foco automático integrado; corta o número de etapas pela metade.              |
+| **Toque por coordenadas**  | `point: [100, 200]` ou `"50%,50%"`                                           | `point: "50%,50%"`                                                                                                     | Aceita lista de inteiros ou strings percentuais relativas à tela.             |
 
 ---
 
@@ -127,6 +128,37 @@ No AndroFlow:
 
 ---
 
+### 2.5 Digitação com Foco Automático e Transliteração
+
+#### No Maestro:
+
+Preencher formulários no Maestro exige sempre dois comandos para cada campo (primeiro tocar para dar foco, depois digitar às cegas):
+
+```yaml
+- tapOn:
+    id: "input_nome"
+- inputText: "João"
+```
+
+#### No AndroFlow:
+
+O AndroFlow permite embutir o seletor diretamente no comando `inputText`. Ele localiza o elemento, toca no centro para abrir o cursor/teclado e digita em seguida:
+
+```yaml
+- inputText:
+    id: "input_nome"
+    text: "João"
+    transliterate: true # Converte automaticamente acentos para "Joao"
+```
+
+#### Por que o AndroFlow é melhor:
+
+1. **Metade das etapas em formulários:** Telas de cadastro e login eliminam comandos `tapOn` repetitivos.
+2. **Elimina digitação no vazio:** O campo é focado e garantido antes do disparo do texto.
+3. **Resiliência a acentos:** `transliterate: true` contorna limitações do ADB nativo sem quebrar testes em português.
+
+---
+
 ## 3. Comandos Úteis do Maestro Incorporados ao AndroFlow
 
 Embora tenhamos descartado as convenções burocráticas, mantivemos e implementamos no AndroFlow comandos essenciais e de alta utilidade:
@@ -180,9 +212,9 @@ appId: com.android.settings
 - waitFor:
     id: "search_bar"
     timeout: 5
-- tapOn:
+- inputText:
     id: "search_bar"
-- inputText: "display"
+    text: "display"
 - waitFor:
     text: "Display size"
     contains: true

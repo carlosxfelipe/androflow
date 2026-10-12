@@ -37,6 +37,21 @@ def test_type_text_rejects_non_ascii(driver: AndroidDriver):
     assert driver.calls == []
 
 
+def test_type_text_transliterates_accents(driver: AndroidDriver):
+    driver.type_text("ação", transliterate=True)
+    assert driver.calls == [("input", "text", "acao")]
+
+    driver.calls.clear()
+    driver.type_text("Cartão de Crédito", transliterate=True)
+    assert driver.calls == [("input", "text", shlex.quote("Cartao%sde%sCredito"))]
+
+
+def test_type_text_transliterate_only_emojis_raises(driver: AndroidDriver):
+    with pytest.raises(AndroidError, match="emojis"):
+        driver.type_text("🚀🎉", transliterate=True)
+    assert driver.calls == []
+
+
 def test_dump_hierarchy_never_reads_stale_file(driver: AndroidDriver):
     driver.shell_output = (
         "UI hierchary dumped to: /sdcard/x.xml\n"
@@ -45,9 +60,10 @@ def test_dump_hierarchy_never_reads_stale_file(driver: AndroidDriver):
     )
     root = driver.dump_hierarchy()
     assert root.tag == "hierarchy"
-    # Um único comando que apaga o dump anterior antes de gerar o novo.
+    # Um único comando que apaga o dump anterior e gera novo dump comprimido.
     assert len(driver.calls) == 1
     assert driver.calls[0][0].startswith("rm -f ")
+    assert "--compressed" in driver.calls[0][0]
 
 
 def test_dump_hierarchy_invalid_xml_raises(driver: AndroidDriver):

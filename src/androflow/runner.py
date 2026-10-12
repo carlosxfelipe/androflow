@@ -81,6 +81,7 @@ class FlowRunner:
         self.poll_interval = poll_interval
         self.echo = echo
         self._app_id: str | None = None
+        self._transliterate: bool = False
         self._handlers: dict[str, Callable[[Any], None]] = {
             "launchApp": self._launch_app,
             "stopApp": self._stop_app,
@@ -128,6 +129,8 @@ class FlowRunner:
                 "comandos; ou um objeto com 'appId' e 'steps'."
             )
 
+        self._transliterate = bool(config.get("transliterate", False))
+
         # Valida o fluxo inteiro antes de executar qualquer etapa (fail-fast).
         steps: list[Step] = []
         for index, raw_step in enumerate(raw_steps, start=1):
@@ -169,7 +172,7 @@ class FlowRunner:
                 if value is not None and not isinstance(value, str):
                     raise FlowError("stopApp: informe o appId em texto.")
             elif command == "inputText":
-                self._parse_text(value)
+                self._parse_input_text_spec(value)
             elif command == "eraseText":
                 if value is not None and (
                     isinstance(value, bool) or not isinstance(value, int) or value <= 0
@@ -354,6 +357,40 @@ class FlowRunner:
             )
         return str(value)
 
+    def _parse_input_text_spec(
+        self, value: Any
+    ) -> tuple[dict[str, Any] | None, str, float, bool]:
+        if isinstance(value, dict):
+            val = dict(value)
+            timeout = self._parse_seconds(
+                val.pop("timeout", self.default_timeout), name="timeout"
+            )
+            raw_transliterate = val.pop("transliterate", self._transliterate)
+            if not isinstance(raw_transliterate, bool):
+                raise FlowError(
+                    "inputText: 'transliterate' deve ser booleano (true/false)."
+                )
+            transliterate = raw_transliterate
+            has_selector = any(k in val for k in ("id", "resourceId", "contentDesc"))
+            if "value" in val:
+                text_to_type = self._parse_text(val.pop("value"))
+            elif "text" in val:
+                text_to_type = self._parse_text(val.pop("text"))
+            else:
+                raise FlowError("inputText: informe o texto em 'text' ou 'value'.")
+
+            if has_selector:
+                validate_selector(val)
+                return val, text_to_type, timeout, transliterate
+
+            if val:
+                raise FlowError(
+                    f"inputText: chave(s) desconhecida(s): {', '.join(sorted(val))}."
+                )
+            return None, text_to_type, timeout, transliterate
+
+        return None, self._parse_text(value), self.default_timeout, self._transliterate
+
     @staticmethod
     def _launch_target(value: Any, default: str | None) -> tuple[str, bool, bool]:
         """Retorna (appId, stopApp, clearState).
@@ -399,6 +436,7 @@ class FlowRunner:
         flow_path = Path(path)
         config, steps = self.load_flow(flow_path)
         self._app_id = config.get("appId")
+        self._transliterate = bool(config.get("transliterate", False))
         result = FlowResult(path=flow_path, total=len(steps))
         self.echo(f"AndroFlow: {flow_path} ({len(steps)} etapas)")
         for index, step in enumerate(steps, start=1):
@@ -475,7 +513,19 @@ class FlowRunner:
         self.driver.tap(*point)
 
     def _input_text(self, value: Any) -> None:
-        self.driver.type_text(self._parse_text(value))
+        selector, text_to_type, timeout, transliterate = self._parse_input_text_spec(
+            value
+        )
+        if selector is not None:
+            element = self._find(selector, timeout)
+            if element is None:
+                raise FlowError(f"Elemento não encontrado para inputText: {selector}")
+            self.driver.tap(*element.center)
+            self.driver.wait(0.3)
+        try:
+            self.driver.type_text(text_to_type, transliterate=transliterate)
+        except TypeError:
+            self.driver.type_text(text_to_type)
 
     def _erase_text(self, value: Any) -> None:
         chars = 50

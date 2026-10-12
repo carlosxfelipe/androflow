@@ -30,8 +30,11 @@ class FakeDriver:
     def tap(self, x, y):
         self.actions.append(("tap", x, y))
 
-    def type_text(self, value):
-        self.actions.append(("type_text", value))
+    def type_text(self, value, *, transliterate=False):
+        if transliterate:
+            self.actions.append(("type_text", value, transliterate))
+        else:
+            self.actions.append(("type_text", value))
 
     def back(self):
         self.actions.append(("back",))
@@ -358,3 +361,85 @@ def test_repeat_command(tmp_path: Path):
         ("press_key", "Enter"),
         ("press_key", "Enter"),
     ]
+
+
+def test_input_text_with_selector_auto_focus(tmp_path: Path):
+    driver = FakeDriver([LOGIN_SCREEN])
+    runner = make_runner(driver, tmp_path)
+    runner.execute(
+        "inputText",
+        {
+            "id": "login",
+            "text": "carlos@exemplo.com",
+        },
+    )
+    assert driver.actions == [
+        ("tap", 60, 45),
+        ("wait", 0.3),
+        ("type_text", "carlos@exemplo.com"),
+    ]
+
+
+def test_input_text_with_selector_value_key(tmp_path: Path):
+    driver = FakeDriver([LOGIN_SCREEN])
+    runner = make_runner(driver, tmp_path)
+    runner.execute(
+        "inputText",
+        {
+            "resourceId": "login",
+            "value": "12345",
+        },
+    )
+    assert driver.actions == [
+        ("tap", 60, 45),
+        ("wait", 0.3),
+        ("type_text", "12345"),
+    ]
+
+
+def test_input_text_with_invalid_selector_raises(tmp_path: Path):
+    driver = FakeDriver()
+    runner = make_runner(driver, tmp_path)
+    with pytest.raises(FlowError, match="informe o texto"):
+        runner.execute("inputText", {"id": "login"})
+    with pytest.raises(FlowError, match="desconhecida"):
+        runner.execute("inputText", {"text": "abc", "chave_invalida": 123})
+
+
+def test_input_text_with_simple_dict(tmp_path: Path):
+    driver = FakeDriver()
+    runner = make_runner(driver, tmp_path)
+    runner.execute("inputText", {"text": "apenas_texto"})
+    assert driver.actions == [("type_text", "apenas_texto")]
+
+
+def test_input_text_transliterate_option(tmp_path: Path):
+    driver = FakeDriver()
+    runner = make_runner(driver, tmp_path)
+    runner.execute(
+        "inputText",
+        {
+            "text": "Cartão de Crédito",
+            "transliterate": True,
+        },
+    )
+    assert driver.actions == [("type_text", "Cartão de Crédito", True)]
+
+
+def test_input_text_transliterate_invalid_type_raises(tmp_path: Path):
+    driver = FakeDriver()
+    runner = make_runner(driver, tmp_path)
+    with pytest.raises(FlowError, match="booleano"):
+        runner.execute("inputText", {"text": "abc", "transliterate": "sim"})
+
+
+def test_input_text_flow_header_transliterate_default(tmp_path: Path):
+    flow_file = tmp_path / "flow.yaml"
+    flow_file.write_text(
+        "appId: com.demo\ntransliterate: true\n---\n- inputText: 'Cartão'\n"
+    )
+    driver = FakeDriver()
+    runner = FlowRunner(driver, artifacts_dir=tmp_path / "artifacts")
+    res = runner.run(flow_file)
+    assert res.ok
+    assert driver.actions == [("type_text", "Cartão", True)]

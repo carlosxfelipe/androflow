@@ -4,6 +4,7 @@ import re
 import shlex
 import subprocess
 import time
+import unicodedata
 import xml.etree.ElementTree as ET
 from collections.abc import Sequence
 from pathlib import Path
@@ -111,12 +112,27 @@ class AndroidDriver:
     def tap(self, x: int, y: int) -> None:
         self.shell("input", "tap", str(int(x)), str(int(y)))
 
-    def type_text(self, value: str) -> None:
+    def type_text(self, value: str, *, transliterate: bool = False) -> None:
         if not value.isascii():
-            raise AndroidError(
-                "`adb shell input text` só suporta caracteres ASCII; "
-                "acentos e emojis não podem ser digitados por este comando."
-            )
+            if transliterate:
+                normalized = (
+                    unicodedata.normalize("NFKD", value)
+                    .encode("ascii", "ignore")
+                    .decode("ascii")
+                )
+                if not normalized:
+                    raise AndroidError(
+                        f"O texto {value!r} continha apenas emojis ou caracteres "
+                        "sem representação ASCII compatível com o ADB."
+                    )
+                value = normalized
+            else:
+                raise AndroidError(
+                    f"`adb shell input text` só suporta caracteres ASCII ({value!r}); "
+                    "acentos e emojis não são aceitos pelo ADB nativo. "
+                    "Use 'transliterate: true' no seu inputText (ou no cabeçalho) "
+                    "para normalizar automaticamente (ex.: 'Cartão' -> 'Cartao')."
+                )
         # `input text` converte "%s" em espaço. Um "%s" literal é dividido em
         # chamadas separadas ("...%" e "s...") para não virar espaço.
         chunks = value.split("%s")
@@ -217,7 +233,11 @@ class AndroidDriver:
         # (ex.: "could not get idle state") mas retornar 0, o `cat` falha em vez
         # de ler uma tela antiga. Tudo em um único round-trip ADB.
         remote = _HIERARCHY_REMOTE
-        script = f"rm -f {remote} && uiautomator dump {remote} >&2 && cat {remote}"
+        script = (
+            f"rm -f {remote} && "
+            f"uiautomator dump --compressed {remote} >&2 && "
+            f"cat {remote}"
+        )
         output = self.shell(script, timeout=30)
         # Em dispositivos antigos (sem shell protocol v2) stderr vem misturado.
         start = output.find("<?xml")
