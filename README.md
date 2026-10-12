@@ -56,38 +56,55 @@ uv run androflow --serial emulator-5554 test flows/settings_search.yaml
 
 ## Documentação e Guias
 
-- [Boas Práticas para Testar Apps React Native](docs/react_native.md): guia completo sobre `testID`, *view flattening*, foco de campos, virtualização de listas e execução com Metro vs. Release.
+- [Sintaxe AndroFlow vs. Maestro](docs/maestro_vs_androflow.md): comparativo detalhado da sintaxe, vantagens de legibilidade e motivos das decisões de design.
+- [Boas Práticas para Testar Apps React Native](docs/react_native.md): guia completo sobre `testID`, _view flattening_, foco de campos, virtualização de listas e execução com Metro vs. Release.
 
 ## Comandos implementados
 
-- `launchApp`: inicia o app via `monkey` usando `appId`.
-- `tapOn`: toca em um elemento localizado por `text`, `resourceId`, `contentDesc` ou `id`; também aceita `point: [x, y]`.
+- `launchApp`: inicia o app via `monkey` usando `appId` (suporta `stopApp: true/false` e `clearState: true/false`).
+- `stopApp`: força a parada do app via `am force-stop`.
+- `tapOn`: toca em um elemento localizado por `text`, `resourceId`, `contentDesc` ou `id`; também aceita `point: [x, y]`, `point: "x, y"` ou percentual `point: "50%, 50%"`.
 - `inputText`: digita texto no campo atualmente focado.
+- `eraseText`: apaga texto do campo focado (padrão 50 caracteres; ou `- eraseText: 10`).
+- `pressKey`: aciona teclas de sistema como `Enter`, `Back`, `Home`, `Tab`, `VolumeUp`, `VolumeDown`.
+- `hideKeyboard`: fecha o teclado virtual se estiver aberto.
+- `scroll`: realiza rolagem na tela (padrão para baixo: `DOWN`).
+- `swipe`: gesto de deslize customizado por direção (`{direction: UP}`) ou coordenadas/percentuais (`{start: "50%,80%", end: "50%,20%"}`).
+- `openLink`: abre URLs ou deep links via `android.intent.action.VIEW`.
 - `assertVisible`: falha se o elemento não estiver presente/visível na hierarquia XML.
 - `assertNotVisible`: aguarda até `timeout` segundos o elemento sumir; falha se continuar visível.
-- `waitFor`: aguarda um elemento até `timeout` segundos.
+- `waitFor`: aguarda um elemento até `timeout` segundos de forma concisa.
+- `repeat`: repete um bloco de comandos (`{times: 3, commands: [...]}`).
 - `takeScreenshot`: salva uma captura de tela. Caminhos relativos são salvos em `artifacts/` (`.png` é adicionado se faltar).
-- `back`: aciona o botão Voltar.
-- `sleep`: pausa por um número de segundos.
+- `back`: aciona o botão Voltar do Android.
+- `sleep`: pausa a execução em segundos (`2`, `0.5`) ou com unidades explícitas (`"2s"`, `"500ms"`).
 
 ### Seletores
 
-`resourceId` pode ser o ID completo (`com.exemplo.app:id/email`) ou o sufixo (`email`).
-`text` e `contentDesc` usam correspondência exata por padrão. Use `contains: true` para correspondência parcial.
+`resourceId` pode ser o ID completo (`com.exemplo.app:id/email`) ou o sufixo (`email`). Também aceita a forma concisa `id:`.
+`text` e `contentDesc` usam correspondência exata por padrão.
+
+- Use `contains: true` para correspondência parcial.
+- Use `regex: true` para correspondência por expressão regular.
 
 ```yaml
 - assertVisible:
-    resourceId: "com.exemplo.app:id/welcome_title"
+    id: "com.exemplo.app:id/welcome_title"
 
 - tapOn:
     contentDesc: "Abrir menu"
 
 - waitFor:
     text: "Carregando"
-    timeout: 15
+    timeout: 5
+
+- swipe:
+    direction: DOWN
+
+- pressKey: Enter
 ```
 
-Chaves desconhecidas no seletor (ex.: `txt:`) geram erro.
+Chaves desconhecidas no seletor (ex.: `txt:`) geram erro de validação antecipada.
 
 ### Validação e falhas
 
@@ -97,12 +114,10 @@ Chaves desconhecidas no seletor (ex.: `txt:`) geram erro.
 
 ## Limitações conhecidas
 
-- A hierarquia XML depende de o app expor componentes acessíveis.
+- A hierarquia XML depende de o app expor componentes acessíveis no Android.
 - `inputText` envia texto ao campo que já estiver focado; não localiza nem foca automaticamente um campo.
 - `inputText` só suporta caracteres ASCII (limitação do `adb shell input text`): acentos e emojis geram erro.
-- `launchApp` usa `appId` e `monkey`; para apps com fluxos de inicialização especiais, talvez seja necessário adaptar o comando.
-- Gestos, rolagem avançada, execução de subfluxos, fixtures, paralelismo, gravação/reprodução e relatórios HTML ainda não estão implementados.
-- Este protótipo não usa Appium nem instala um serviço de instrumentação no app.
+- O AndroFlow é focado exclusivamente em Android via ADB, sem intermediários ou daemons compilados.
 
 ## Desenvolvimento
 

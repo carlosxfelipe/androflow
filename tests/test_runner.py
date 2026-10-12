@@ -52,6 +52,30 @@ class FakeDriver:
         self.actions.append(("screenshot", path))
         return path
 
+    def clear_app(self, app_id):
+        self.actions.append(("clear_app", app_id))
+
+    def press_key(self, key):
+        self.actions.append(("press_key", key))
+
+    def erase_text(self, characters):
+        self.actions.append(("erase_text", characters))
+
+    def hide_keyboard(self):
+        self.actions.append(("hide_keyboard",))
+
+    def scroll(self, direction="DOWN"):
+        self.actions.append(("scroll", direction))
+
+    def swipe(self, start_x, start_y, end_x, end_y, duration_ms=400):
+        self.actions.append(("swipe", start_x, start_y, end_x, end_y, duration_ms))
+
+    def open_link(self, url):
+        self.actions.append(("open_link", url))
+
+    def screen_size(self):
+        return (1000, 2000)
+
 
 def write_flow(tmp_path: Path, body: str, header: str = "appId: com.demo.app"):
     path = tmp_path / "flow.yaml"
@@ -231,3 +255,106 @@ def test_wait_for_surfaces_read_error_when_last_attempt_fails(tmp_path: Path):
     driver = FakeDriver([AndroidError("idle state")])
     with pytest.raises(FlowError, match="Falha ao ler a tela: idle state"):
         make_runner(driver, tmp_path).execute("waitFor", "Entrar")
+
+
+def test_sleep_units_and_seconds(tmp_path: Path):
+    driver = FakeDriver()
+    runner = make_runner(driver, tmp_path)
+    # Segundos puros
+    runner.execute("sleep", 2)
+    runner.execute("sleep", 0.5)
+    # Unidades explícitas
+    runner.execute("sleep", "500ms")
+    runner.execute("sleep", "3s")
+    assert driver.actions == [
+        ("wait", 2.0),
+        ("wait", 0.5),
+        ("wait", 0.5),
+        ("wait", 3.0),
+    ]
+
+
+def test_tap_on_percent_and_string_point(tmp_path: Path):
+    driver = FakeDriver()
+    runner = make_runner(driver, tmp_path)
+    # FakeDriver.screen_size() é (1000, 2000)
+    runner.execute("tapOn", {"point": "50%,50%"})
+    runner.execute("tapOn", {"point": "100, 250"})
+    assert driver.actions == [
+        ("tap", 500, 1000),
+        ("tap", 100, 250),
+    ]
+
+
+def test_press_key_command(tmp_path: Path):
+    driver = FakeDriver()
+    make_runner(driver, tmp_path).execute("pressKey", "Enter")
+    assert driver.actions == [("press_key", "Enter")]
+
+
+def test_erase_text_command(tmp_path: Path):
+    driver = FakeDriver()
+    runner = make_runner(driver, tmp_path)
+    runner.execute("eraseText")
+    runner.execute("eraseText", 12)
+    assert driver.actions == [
+        ("erase_text", 50),
+        ("erase_text", 12),
+    ]
+
+
+def test_scroll_and_swipe_commands(tmp_path: Path):
+    driver = FakeDriver()
+    runner = make_runner(driver, tmp_path)
+    runner.execute("scroll")
+    runner.execute("swipe", {"direction": "UP"})
+    runner.execute("swipe", {"start": "10%,20%", "end": "30%,40%", "duration": 300})
+    assert driver.actions == [
+        ("scroll", "DOWN"),
+        ("scroll", "UP"),
+        ("swipe", 100, 400, 300, 800, 300),
+    ]
+
+
+def test_open_link_and_hide_keyboard(tmp_path: Path):
+    driver = FakeDriver()
+    runner = make_runner(driver, tmp_path)
+    runner.execute("openLink", "https://app.link")
+    runner.execute("hideKeyboard")
+    assert driver.actions == [
+        ("open_link", "https://app.link"),
+        ("hide_keyboard",),
+    ]
+
+
+def test_launch_app_clear_state_and_stop_app(tmp_path: Path):
+    driver = FakeDriver()
+    runner = make_runner(driver, tmp_path)
+    runner._app_id = "com.demo.app"
+    runner.execute("launchApp", {"clearState": True, "stopApp": True})
+    runner.execute("stopApp")
+    assert driver.actions == [
+        ("clear_app", "com.demo.app"),
+        ("stop_app", "com.demo.app"),
+        ("launch_app", "com.demo.app"),
+        ("stop_app", "com.demo.app"),
+    ]
+
+
+def test_repeat_command(tmp_path: Path):
+    driver = FakeDriver()
+    runner = make_runner(driver, tmp_path)
+    runner.execute(
+        "repeat",
+        {
+            "times": 3,
+            "commands": [
+                {"pressKey": "Enter"},
+            ],
+        },
+    )
+    assert driver.actions == [
+        ("press_key", "Enter"),
+        ("press_key", "Enter"),
+        ("press_key", "Enter"),
+    ]

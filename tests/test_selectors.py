@@ -38,3 +38,13 @@ def test_rejects_selector_without_match_key():
 def test_element_center():
     root = ET.fromstring('<hierarchy><node bounds="[10,20][110,70]" /></hierarchy>')
     assert parse_elements(root)[0].center == (60, 45)
+
+
+def test_regex_selector():
+    root = ET.fromstring(
+        '<hierarchy><node text="Order #12345 confirmed" resource-id="" '
+        'content-desc="" bounds="[0,0][100,50]" displayed-to-user="true" /></hierarchy>'
+    )
+    elements = parse_elements(root)
+    assert find_element(elements, {"text": r"Order #\d+ confirmed", "regex": True})
+    assert find_element(elements, {"text": r"^Order #999", "regex": True}) is None

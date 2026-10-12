@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shlex
 import subprocess
 import time
@@ -15,6 +16,23 @@ class AndroidError(RuntimeError):
 _HIERARCHY_REMOTE = "/sdcard/androflow-window.xml"
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
+_KEY_NAMES: dict[str, str] = {
+    "enter": "KEYCODE_ENTER",
+    "back": "KEYCODE_BACK",
+    "home": "KEYCODE_HOME",
+    "tab": "KEYCODE_TAB",
+    "delete": "KEYCODE_DEL",
+    "backspace": "KEYCODE_DEL",
+    "volumeup": "KEYCODE_VOLUME_UP",
+    "volume_up": "KEYCODE_VOLUME_UP",
+    "volumedown": "KEYCODE_VOLUME_DOWN",
+    "volume_down": "KEYCODE_VOLUME_DOWN",
+    "search": "KEYCODE_SEARCH",
+    "space": "KEYCODE_SPACE",
+    "escape": "KEYCODE_ESCAPE",
+    "power": "KEYCODE_POWER",
+}
+
 
 def _decode(data: bytes) -> str:
     return data.decode("utf-8", errors="replace").strip()
@@ -24,6 +42,7 @@ class AndroidDriver:
     def __init__(self, serial: str | None = None, adb_path: str = "adb") -> None:
         self.serial = serial
         self.adb_path = adb_path
+        self._cached_screen_size: tuple[int, int] | None = None
 
     def _run(self, args: Sequence[str], *, timeout: float = 30) -> bytes:
         """Executa o adb e devolve o stdout bruto (bytes)."""
@@ -113,6 +132,85 @@ class AndroidDriver:
 
     def back(self) -> None:
         self.shell("input", "keyevent", "KEYCODE_BACK")
+
+    def hide_keyboard(self) -> None:
+        self.back()
+
+    def clear_app(self, app_id: str) -> None:
+        self._check_app_id(app_id)
+        self.shell("pm", "clear", app_id)
+
+    def press_key(self, key: str | int) -> None:
+        raw = str(key).strip()
+        normalized = raw.lower().replace("-", "_").replace(" ", "_")
+        code = _KEY_NAMES.get(normalized)
+        if not code:
+            if raw.isdigit() or raw.startswith("KEYCODE_"):
+                code = raw
+            else:
+                code = f"KEYCODE_{raw.upper()}"
+        self.shell("input", "keyevent", code)
+
+    def erase_text(self, characters: int = 50) -> None:
+        count = max(1, int(characters))
+        chunks = [min(count - i, 50) for i in range(0, count, 50)]
+        for chunk in chunks:
+            self.shell("input", "keyevent", *["67"] * chunk)
+
+    def screen_size(self) -> tuple[int, int]:
+        if self._cached_screen_size is not None:
+            return self._cached_screen_size
+        output = self.shell("wm", "size")
+        matches = re.findall(r"(\d+)x(\d+)", output)
+        if matches:
+            w, h = int(matches[-1][0]), int(matches[-1][1])
+            self._cached_screen_size = (w, h)
+            return (w, h)
+        return (1080, 2400)
+
+    def swipe(
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
+        duration_ms: int = 400,
+    ) -> None:
+        self.shell(
+            "input",
+            "swipe",
+            str(int(start_x)),
+            str(int(start_y)),
+            str(int(end_x)),
+            str(int(end_y)),
+            str(int(duration_ms)),
+        )
+
+    def scroll(self, direction: str = "DOWN") -> None:
+        w, h = self.screen_size()
+        direction_upper = direction.upper()
+        if direction_upper == "DOWN":
+            self.swipe(w // 2, int(h * 0.75), w // 2, int(h * 0.25))
+        elif direction_upper == "UP":
+            self.swipe(w // 2, int(h * 0.25), w // 2, int(h * 0.75))
+        elif direction_upper == "LEFT":
+            self.swipe(int(w * 0.8), h // 2, int(w * 0.2), h // 2)
+        elif direction_upper == "RIGHT":
+            self.swipe(int(w * 0.2), h // 2, int(w * 0.8), h // 2)
+        else:
+            raise ValueError(f"Direção de rolagem desconhecida: {direction}")
+
+    def open_link(self, url: str) -> None:
+        if not url:
+            raise ValueError("URL não pode ser vazia.")
+        self.shell(
+            "am",
+            "start",
+            "-a",
+            "android.intent.action.VIEW",
+            "-d",
+            shlex.quote(str(url)),
+        )
 
     def dump_hierarchy(self) -> ET.Element:
         # Remove o dump anterior antes de gerar um novo: se o uiautomator falhar

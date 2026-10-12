@@ -9,6 +9,7 @@ Este guia reúne conceitos, recomendações de código e boas práticas para cri
 O React Native renderiza componentes nativos na plataforma Android (ex.: `ReactTextView`, `ReactViewGroup`, `ReactEditText`). O AndroFlow consulta a árvore de acessibilidade nativa via `adb shell uiautomator dump`.
 
 Portanto:
+
 - O AndroFlow não precisa de drivers especiais, Appium ou bibliotecas injetadas no JavaScript.
 - Tudo o que estiver exposto na hierarquia de acessibilidade nativa do Android pode ser localizado e validado pelo AndroFlow.
 
@@ -39,11 +40,12 @@ No AndroFlow, use o seletor `resourceId` ou `id` (a correspondência por sufixo 
 
 ---
 
-### 2.2 Cuidado com *View Flattening* (`collapsable={false}`)
+### 2.2 Cuidado com _View Flattening_ (`collapsable={false}`)
 
-O React Native aplica uma otimização no Android chamada *view flattening*: tags `<View>` sem plano de fundo, bordas ou ouvintes de toque podem ser mescladas ou descartadas da árvore nativa para economizar memória.
+O React Native aplica uma otimização no Android chamada _view flattening_: tags `<View>` sem plano de fundo, bordas ou ouvintes de toque podem ser mescladas ou descartadas da árvore nativa para economizar memória.
 
 Se você colocar um `testID` em uma `<View>` estrutural e o AndroFlow não conseguir encontrá-la:
+
 1. Adicione `collapsable={false}`:
    ```tsx
    <View testID="container_produtos" collapsable={false}>
@@ -159,7 +161,7 @@ Em telas com botões inferiores (ex.: "Continuar" ou "Entrar"), o teclado virtua
 - tapOn:
     resourceId: "input_senha"
 - inputText: "segredo123"
-- back   # Fecha o teclado virtual
+- back # Fecha o teclado virtual
 - tapOn:
     resourceId: "btn_login"
 ```
@@ -171,6 +173,7 @@ Em telas com botões inferiores (ex.: "Continuar" ou "Entrar"), o teclado virtua
 O React Native utiliza virtualização de listas para performance. Componentes que estão fora da área visível da tela **não existem no DOM/árvore XML** do Android até serem rolados para a viewport.
 
 ### Boas práticas:
+
 1. **Dados de mock controlados:** Em cenários de teste, ordene ou limite a lista de teste para que os itens que você precisa validar estejam inicialmente visíveis na viewport.
 2. **Rolagem:** Caso precise alcançar elementos abaixo da dobra, utilize coordenadas ou ajuste a exibição para caber na densidade do emulador.
 
@@ -178,7 +181,7 @@ O React Native utiliza virtualização de listas para performance. Componentes q
 
 ## 5. Animações Contínuas e `idle state`
 
-O comando `uiautomator dump` do ADB aguarda uma janela de inatividade (*idle state*) para capturar a árvore de elementos. 
+O comando `uiautomator dump` do ADB aguarda uma janela de inatividade (_idle state_) para capturar a árvore de elementos.
 
 - Se o app tiver loaders em loop infinito (como `ActivityIndicator` nativo, animações infinitas de `react-native-reanimated` ou Lottie rodando sem parar), o dump pode sofrer timeout com o erro `could not get idle state`.
 - **Recomendação:** Em ambiente de testes, garanta que loaders tenham condições de término ou desative animações infinitas via variável de ambiente / flag de teste (`__DEV__` ou `IS_TESTING`).
@@ -190,12 +193,18 @@ O comando `uiautomator dump` do ADB aguarda uma janela de inatividade (*idle sta
 ### Código no React Native (`LoginScreen.tsx`):
 
 ```tsx
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+} from "react-native";
 
 export function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   return (
     <View testID="screen_login" collapsable={false} style={styles.container}>
@@ -222,7 +231,7 @@ export function LoginScreen() {
         testID="btn_submit"
         accessibilityLabel="Entrar no aplicativo"
         style={styles.button}
-        onPress={() => console.log('Login')}
+        onPress={() => console.log("Login")}
       >
         <Text style={styles.buttonText}>Entrar</Text>
       </TouchableOpacity>
@@ -231,11 +240,22 @@ export function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: 'center' },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 12, borderRadius: 8, marginBottom: 12 },
-  button: { backgroundColor: '#0066cc', padding: 16, borderRadius: 8, alignItems: 'center' },
-  buttonText: { color: '#fff', fontWeight: 'bold' }
+  container: { flex: 1, padding: 24, justifyContent: "center" },
+  title: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  button: {
+    backgroundColor: "#0066cc",
+    padding: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  buttonText: { color: "#fff", fontWeight: "bold" },
 });
 ```
 
@@ -276,5 +296,5 @@ Quando um elemento não for encontrado pelo AndroFlow durante o teste:
    - `artifacts/<fluxo>-falha-<etapa>.xml`: cópia integral da árvore XML retornada pelo Android.
 2. Abra o arquivo `.xml` gerado e busque pelo seu identificador ou texto para verificar:
    - Se o `resource-id` foi exposto como esperado.
-   - Se a view sofreu colapso (*view flattening*).
+   - Se a view sofreu colapso (_view flattening_).
    - Se o texto está em maiúsculas/minúsculas diferentes (ex.: `text-transform: uppercase` do CSS).

@@ -30,7 +30,7 @@ MATCH_KEYS: dict[str, str] = {
     "id": "resource_id",
     "contentDesc": "content_desc",
 }
-OPTION_KEYS = frozenset({"contains", "visible"})
+OPTION_KEYS = frozenset({"contains", "visible", "regex"})
 
 
 def _bool(value: str | None) -> bool:
@@ -74,10 +74,21 @@ def validate_selector(selector: dict[str, Any]) -> None:
         )
 
 
-def _matches(element: UiElement, attr: str, expected: str, contains: bool) -> bool:
+def _matches(
+    element: UiElement,
+    attr: str,
+    expected: str,
+    contains: bool,
+    regex: bool = False,
+) -> bool:
     actual = getattr(element, attr)
     if attr == "resource_id" and "/" not in expected:
         actual = actual.rsplit("/", 1)[-1]
+    if regex:
+        try:
+            return bool(re.search(expected, actual))
+        except re.error:
+            return False
     return expected in actual if contains else expected == actual
 
 
@@ -92,12 +103,14 @@ def find_element(
         if key in selector
     ]
     contains = bool(selector.get("contains", False))
+    regex = bool(selector.get("regex", False))
     visible_only = bool(selector.get("visible", True))
     for element in elements:
         if visible_only and not element.visible:
             continue
         if all(
-            _matches(element, attr, expected, contains) for attr, expected in active
+            _matches(element, attr, expected, contains, regex)
+            for attr, expected in active
         ):
             return element
     return None
