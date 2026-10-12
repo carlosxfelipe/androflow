@@ -142,3 +142,7 @@ uv run ruff format
 uv run ruff check
 uv run androflow --help
 ```
+
+## Licença
+
+Distribuído sob a licença [GNU General Public License v3.0 (GPLv3)](LICENSE). Consulte o arquivo `LICENSE` para obter mais detalhes.
