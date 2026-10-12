@@ -1,0 +1,54 @@
+# Tour pelo app Configurações do Android (emulador em inglês).
+#
+# Percorre: tela inicial -> busca "dark theme" -> resultado em Display & touch
+# -> volta para a busca -> volta para a tela inicial.
+#
+#   uv run androflow test flows/settings_search.yaml
+appId: com.android.settings
+---
+# stopApp (padrão) garante que o app abre na tela inicial, não onde parou.
+- launchApp
+
+# 1. Tela inicial
+- assertVisible: "Network & internet"
+- assertVisible:
+    text: "Connected devices"
+- takeScreenshot: "settings-01-home"
+
+# 2. Busca (o campo já abre focado, com o teclado)
+- tapOn: "Search Settings"
+- waitFor:
+    resourceId: "open_search_view_edit_text"
+    timeout: 5
+- inputText: "dark theme"
+# O campo deve conter exatamente o texto digitado (valida o escape do espaço).
+- assertVisible:
+    resourceId: "open_search_view_edit_text"
+    text: "dark theme"
+- assertVisible: "Standard dark theme"
+- assertVisible:
+    text: "Expanded"
+    contains: true
+- takeScreenshot: "settings-02-busca"
+
+# 3. Abre o primeiro resultado: Display & touch, seção Appearance
+- tapOn: "Dark theme"
+- assertVisible: "Appearance"
+- assertVisible:
+    text: "Display size"
+    contains: true
+- assertVisible: "Navigation mode"
+- takeScreenshot: "settings-03-display"
+
+# 4. Volta para os resultados da busca
+- back
+- assertVisible: "Standard dark theme"
+- assertNotVisible: "Appearance"
+
+# 5. Volta para a tela inicial
+- back
+- assertVisible:
+    resourceId: "search_bar_title"
+- assertVisible: "Network & internet"
+- assertNotVisible: "Standard dark theme"
+- takeScreenshot: "settings-04-fim"
