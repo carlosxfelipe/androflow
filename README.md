@@ -54,6 +54,10 @@ Se houver mais de um dispositivo, informe o serial:
 uv run androflow --serial emulator-5554 test flows/settings_search.yaml
 ```
 
+## Documentação e Guias
+
+- [Boas Práticas para Testar Apps React Native](docs/react_native.md): guia completo sobre `testID`, *view flattening*, foco de campos, virtualização de listas e execução com Metro vs. Release.
+
 ## Comandos implementados
 
 - `launchApp`: inicia o app via `monkey` usando `appId`.
