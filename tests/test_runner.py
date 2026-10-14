@@ -251,7 +251,7 @@ def test_wait_for_reports_latest_state_instead_of_stale_error(
     driver = FakeDriver([AndroidError("idle state"), EMPTY_SCREEN])
     runner = make_runner(driver, tmp_path)
     with pytest.raises(FlowError, match="Timeout aguardando"):
-        runner.execute("waitFor", {"text": "Entrar", "timeout": 1.5})
+        runner.execute("waitFor", {"text": "Entrar", "timeout": 1500})
 
 
 def test_wait_for_surfaces_read_error_when_last_attempt_fails(tmp_path: Path):
@@ -260,12 +260,12 @@ def test_wait_for_surfaces_read_error_when_last_attempt_fails(tmp_path: Path):
         make_runner(driver, tmp_path).execute("waitFor", "Entrar")
 
 
-def test_sleep_units_and_seconds(tmp_path: Path):
+def test_sleep_units_and_milliseconds(tmp_path: Path):
     driver = FakeDriver()
     runner = make_runner(driver, tmp_path)
-    # Segundos puros
-    runner.execute("sleep", 2)
-    runner.execute("sleep", 0.5)
+    # Milissegundos puros (padrão Maestro)
+    runner.execute("sleep", 2000)
+    runner.execute("sleep", 500)
     # Unidades explícitas
     runner.execute("sleep", "500ms")
     runner.execute("sleep", "3s")
@@ -275,6 +275,36 @@ def test_sleep_units_and_seconds(tmp_path: Path):
         ("wait", 0.5),
         ("wait", 3.0),
     ]
+
+
+def test_parse_duration_milliseconds_and_units():
+    # Padrão numérico é milissegundos
+    assert FlowRunner._parse_duration(2000) == 2.0
+    assert FlowRunner._parse_duration(500) == 0.5
+    assert FlowRunner._parse_duration(0) == 0.0
+    assert FlowRunner._parse_duration("3000") == 3.0
+    # Unidades explícitas
+    assert FlowRunner._parse_duration("500ms") == 0.5
+    assert FlowRunner._parse_duration("2s") == 2.0
+    assert FlowRunner._parse_duration("1.5s") == 1.5
+    # Inválidos
+    with pytest.raises(FlowError, match="milissegundos"):
+        FlowRunner._parse_duration(-1)
+    with pytest.raises(FlowError, match="ms"):
+        FlowRunner._parse_duration(True)
+    with pytest.raises(FlowError, match="com 's' inválido"):
+        FlowRunner._parse_duration("-5s")
+    with pytest.raises(FlowError, match="com 'ms' inválido"):
+        FlowRunner._parse_duration("-500ms")
+
+
+def test_timeout_with_explicit_units_in_selector(tmp_path: Path):
+    driver = FakeDriver([LOGIN_SCREEN, LOGIN_SCREEN, LOGIN_SCREEN])
+    runner = make_runner(driver, tmp_path)
+    # Suporta timeout em milissegundos ou com unidade
+    runner.execute("waitFor", {"text": "Entrar", "timeout": 5000})
+    runner.execute("waitFor", {"text": "Entrar", "timeout": "5s"})
+    runner.execute("waitFor", {"text": "Entrar", "timeout": "500ms"})
 
 
 def test_tap_on_percent_and_string_point(tmp_path: Path):

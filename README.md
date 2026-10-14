@@ -83,12 +83,12 @@ uv run androflow --serial emulator-5554 test flows/settings_search.yaml
 - `swipe`: gesto de deslize customizado por direção (`{direction: UP}`) ou coordenadas/percentuais (`{start: "50%,80%", end: "50%,20%"}`).
 - `openLink`: abre URLs ou deep links via `android.intent.action.VIEW`.
 - `assertVisible`: falha se o elemento não estiver presente/visível na hierarquia XML.
-- `assertNotVisible`: aguarda até `timeout` segundos o elemento sumir; falha se continuar visível.
-- `waitFor`: aguarda um elemento até `timeout` segundos de forma concisa.
+- `assertNotVisible`: aguarda até `timeout` (padrão em milissegundos, ex.: `5000`, ou com unidades como `"5s"`) o elemento sumir; falha se continuar visível.
+- `waitFor`: aguarda um elemento até `timeout` (padrão em milissegundos, ex.: `5000`, ou com unidades como `"5s"`) de forma concisa.
 - `repeat`: repete um bloco de comandos (`{times: 3, commands: [...]}`).
 - `takeScreenshot`: salva uma captura de tela. Caminhos relativos são salvos em `artifacts/` (`.png` é adicionado se faltar).
 - `back`: aciona o botão Voltar do Android.
-- `sleep`: pausa a execução em segundos (`2`, `0.5`) ou com unidades explícitas (`"2s"`, `"500ms"`).
+- `sleep`: pausa a execução em milissegundos (`2000`, `500`) ou com unidades explícitas (`"2s"`, `"500ms"`).
 
 ### Seletores
 
@@ -107,7 +107,7 @@ uv run androflow --serial emulator-5554 test flows/settings_search.yaml
 
 - waitFor:
     text: "Carregando"
-    timeout: 5
+    timeout: 5000
 
 - swipe:
     direction: DOWN

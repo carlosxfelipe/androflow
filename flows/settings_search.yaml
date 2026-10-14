@@ -19,7 +19,7 @@ appId: com.android.settings
 - tapOn: "Search Settings"
 - waitFor:
     resourceId: "open_search_view_edit_text"
-    timeout: 5
+    timeout: 5000
 - inputText: "dark theme"
 # O campo deve conter exatamente o texto digitado (valida o escape do espaço).
 - assertVisible:

@@ -8,16 +8,16 @@ Este documento detalha as diferenças entre as duas abordagens e as motivações
 
 ## 1. Tabela Comparativa Rápida
 
-| Ação / Recurso             | AndroFlow (Enxuto)                                                           | Maestro (Legado)                                                                                                       | Vantagem do AndroFlow                                                         |
-| :------------------------- | :--------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------- |
-| **Aguardar elemento**      | `- waitFor: { id: "btn", timeout: 5 }`                                       | `- extendedWaitUntil:`<br>&nbsp;&nbsp;`visible:`<br>&nbsp;&nbsp;&nbsp;&nbsp;`id: "btn"`<br>&nbsp;&nbsp;`timeout: 5000` | Menos níveis de indentação; comando direto e autoexplicativo.                 |
-| **Pausar fluxo**           | `- sleep: 2` (ou `"500ms"`)                                                  | `- sleep: 2000`                                                                                                        | Segundos são a unidade natural do pensamento humano.                          |
-| **Timeout de espera**      | `timeout: 5`                                                                 | `timeout: 5000`                                                                                                        | Conciso; elimina repetições de zeros (`000`).                                 |
-| **Busca parcial de texto** | `text: "Tema", contains: true`                                               | `text: ".*Tema.*"`                                                                                                     | Não exige conhecimento de regex nem escape de caracteres.                     |
-| **Busca por regex**        | `text: "ID \\d+", regex: true`                                               | `text: "ID \\d+"`                                                                                                      | Intenção explícita; evita falso-positivos de regex acidental.                 |
-| **Seletor de ID**          | `id:` ou `resourceId:`                                                       | Apenas `id:`                                                                                                           | Flexibilidade entre forma curta (`id`) e nome técnico Android (`resourceId`). |
-| **Digitação em campo**     | `- inputText:`<br>&nbsp;&nbsp;`id: "email"`<br>&nbsp;&nbsp;`text: "a@b.com"` | `- tapOn:`<br>&nbsp;&nbsp;`id: "email"`<br>`- inputText: "a@b.com"`                                                    | Foco automático integrado; corta o número de etapas pela metade.              |
-| **Toque por coordenadas**  | `point: [100, 200]` ou `"50%,50%"`                                           | `point: "50%,50%"`                                                                                                     | Aceita lista de inteiros ou strings percentuais relativas à tela.             |
+| Ação / Recurso             | AndroFlow (Enxuto)                                                           | Maestro (Legado)                                                                                                       | Vantagem do AndroFlow                                                            |
+| :------------------------- | :--------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------- |
+| **Aguardar elemento**      | `- waitFor: { id: "btn", timeout: 5000 }` (ou `"5s"`)                        | `- extendedWaitUntil:`<br>&nbsp;&nbsp;`visible:`<br>&nbsp;&nbsp;&nbsp;&nbsp;`id: "btn"`<br>&nbsp;&nbsp;`timeout: 5000` | Menos níveis de indentação; comando direto e autoexplicativo.                    |
+| **Pausar fluxo**           | `- sleep: 2000` (ou `"2s"`, `"500ms"`)                                       | `- sleep: 2000`                                                                                                        | Padrão em ms idêntico ao Maestro, com flexibilidade de unidades explícitas.      |
+| **Timeout de espera**      | `timeout: 5000` (ou `"5s"`)                                                  | `timeout: 5000`                                                                                                        | Padrão em ms compatível com o ecossistema, além de aceitar unidades como `"5s"`. |
+| **Busca parcial de texto** | `text: "Tema", contains: true`                                               | `text: ".*Tema.*"`                                                                                                     | Não exige conhecimento de regex nem escape de caracteres.                        |
+| **Busca por regex**        | `text: "ID \\d+", regex: true`                                               | `text: "ID \\d+"`                                                                                                      | Intenção explícita; evita falso-positivos de regex acidental.                    |
+| **Seletor de ID**          | `id:` ou `resourceId:`                                                       | Apenas `id:`                                                                                                           | Flexibilidade entre forma curta (`id`) e nome técnico Android (`resourceId`).    |
+| **Digitação em campo**     | `- inputText:`<br>&nbsp;&nbsp;`id: "email"`<br>&nbsp;&nbsp;`text: "a@b.com"` | `- tapOn:`<br>&nbsp;&nbsp;`id: "email"`<br>`- inputText: "a@b.com"`                                                    | Foco automático integrado; corta o número de etapas pela metade.                 |
+| **Toque por coordenadas**  | `point: [100, 200]` ou `"50%,50%"`                                           | `point: "50%,50%"`                                                                                                     | Aceita lista de inteiros ou strings percentuais relativas à tela.                |
 
 ---
 
@@ -39,18 +39,18 @@ Este documento detalha as diferenças entre as duas abordagens e as motivações
 ```yaml
 - waitFor:
     id: "search_box"
-    timeout: 5
+    timeout: 5000 # ou timeout: "5s"
 ```
 
 #### Por que o AndroFlow é melhor:
 
 1. **Redução de indentação:** O Maestro exige **3 níveis de aninhamento** apenas para esperar que um componente apareça na tela. No AndroFlow, basta **1 nível**.
 2. **Nome sem débitos históricos:** O nome `extendedWaitUntil` surgiu no Maestro porque inicialmente a ferramenta possuía apenas esperas implícitas curtas e, posteriormente, adicionou uma espera "estendida". O AndroFlow não carrega esse histórico: o comando chama-se simplesmente `waitFor`, como em qualquer biblioteca moderna de testes.
-3. **Elemento ausente:** Para aguardar um elemento sumir da tela, o AndroFlow possui o comando declarativo `- assertNotVisible: { id: "loading", timeout: 10 }`, sem necessitar aninhar `notVisible:` dentro de `extendedWaitUntil:`.
+3. **Elemento ausente:** Para aguardar um elemento sumir da tela, o AndroFlow possui o comando declarativo `- assertNotVisible: { id: "loading", timeout: 10000 }`, sem necessitar aninhar `notVisible:` dentro de `extendedWaitUntil:`.
 
 ---
 
-### 2.2 Segundos Humanos vs. Milissegundos Computacionais
+### 2.2 Milissegundos por Padrão com Suporte a Unidades Explícitas
 
 #### No Maestro:
 
@@ -65,18 +65,27 @@ Este documento detalha as diferenças entre as duas abordagens e as motivações
 #### No AndroFlow:
 
 ```yaml
-- sleep: 3
+# 1. Totalmente compatível com o padrão do Maestro (números puros em ms):
+- sleep: 3000
 
 - waitFor:
     text: "Confirmado"
-    timeout: 15
+    timeout: 15000
+
+# 2. Ou com unidades explícitas quando preferir:
+- sleep: "3s"
+
+- waitFor:
+    text: "Confirmado"
+    timeout: "15s"
+
+- sleep: "500ms"
 ```
 
 #### Por que o AndroFlow é melhor:
 
-- Ao projetar testes de interface de usuário, humanos raciocinam em **segundos** (_"aguarde 3 segundos"_, _"timeout de 15 segundos"_).
-- Ter que digitar `3000` ou `15000` em cada etapa gera poluição visual desnecessária e aumenta as chances de erros de digitação (ex.: `sleep: 300` achando que são 3 segundos, quando seriam apenas 300 milissegundos).
-- **Precisão fracionada quando necessária:** Se você realmente precisar de esperas sub-segundo, o AndroFlow aceita floats (`sleep: 0.5`) ou strings explícitas com unidade (`sleep: "500ms"`).
+- **Zero atrito de migração:** Valores numéricos puros usam **milissegundos** por padrão (`3000` = 3s, `15000` = 15s), igualando a convenção histórica do Maestro e de ferramentas mobile.
+- **Expressividade com unidades reais:** Se você preferir uma leitura mais humana e evitar contas de zeros, basta informar a unidade como string (`"3s"`, `"15s"`, `"500ms"`). O AndroFlow interpreta ambas as formas de maneira transparente.
 
 ---
 
@@ -211,16 +220,16 @@ appId: com.android.settings
 - launchApp
 - waitFor:
     id: "search_bar"
-    timeout: 5
+    timeout: 5000 # ou timeout: "5s"
 - inputText:
     id: "search_bar"
     text: "display"
 - waitFor:
     text: "Display size"
     contains: true
-    timeout: 5
+    timeout: 5000
 - tapOn: "Display size"
-- sleep: 2
+- sleep: 2000 # ou sleep: "2s"
 ```
 
 ---
@@ -228,5 +237,5 @@ appId: com.android.settings
 ## 5. Resumo da Filosofia do AndroFlow
 
 1. **Simplicidade sobre burocracia:** YAML deve ser fácil de ler por humanos, sem aninhamentos desnecessários.
-2. **Sem mágicas silenciosas:** O tempo é em segundos. Se precisar de frações, informe expressamente (`0.5` ou `"500ms"`).
+2. **Compatibilidade com expressividade:** Valores numéricos puros de tempo seguem o padrão em milissegundos do Maestro (`2000`, `5000`), mas aceitam unidades explícitas (`"2s"`, `"500ms"`) quando a legibilidade for prioridade.
 3. **Foco e performance:** Focado exclusivamente em Android via ADB, sem intermediários pesados, mantendo execução rápida e direta.

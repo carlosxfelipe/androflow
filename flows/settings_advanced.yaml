@@ -39,7 +39,7 @@ appId: com.android.settings
 - tapOn: "Pesquise configurações"
 - waitFor:
     id: "open_search_view_edit_text"
-    timeout: 5
+    timeout: 5000
 
 - inputText:
     id: "open_search_view_edit_text"
@@ -67,7 +67,7 @@ appId: com.android.settings
 - pressKey: Back
 - waitFor:
     text: "Pesquise configurações"
-    timeout: 5
+    timeout: 5000
 
 # 8. Valida retorno à tela das configurações em português
 - assertVisible: "Pesquise configurações"

@@ -18,7 +18,7 @@ Step = dict[str, Any]
 _SELECTOR_COMMANDS = frozenset(
     {"tapOn", "assertVisible", "assertNotVisible", "waitFor"}
 )
-# Comandos que exigem um valor (ex.: `- sleep: 2`, e não apenas `- sleep`).
+# Comandos que exigem um valor (ex.: `- sleep: 2000`, e não apenas `- sleep`).
 _VALUE_REQUIRED = _SELECTOR_COMMANDS | {
     "inputText",
     "takeScreenshot",
@@ -197,7 +197,7 @@ class FlowRunner:
             elif command == "repeat":
                 self._validate_repeat(value, app_id)
             elif command == "sleep":
-                self._parse_seconds(value)
+                self._parse_duration(value, name="sleep")
             elif command == "takeScreenshot" and not (
                 isinstance(value, str) and value.strip()
             ):
@@ -252,8 +252,11 @@ class FlowRunner:
             selector = dict(value)  # cópia: não altera o fluxo carregado
         else:
             raise FlowError(f"{command}: seletor deve ser texto ou objeto YAML.")
-        timeout = self._parse_seconds(
-            selector.pop("timeout", self.default_timeout), name="timeout"
+        raw_timeout = selector.pop("timeout", None)
+        timeout = (
+            self.default_timeout
+            if raw_timeout is None
+            else self._parse_duration(raw_timeout, name="timeout")
         )
         try:
             validate_selector(selector)
@@ -317,9 +320,16 @@ class FlowRunner:
         raise FlowError(f"Formato de coordenadas inválido: {point_spec}")
 
     @staticmethod
-    def _parse_seconds(value: Any, name: str = "sleep") -> float:
+    def _parse_duration(value: Any, name: str = "sleep") -> float:
+        """Converte duração (ms puro ou string como '500ms'/'5s') para segundos.
+
+        Como no Maestro, o padrão para números puros são milissegundos (2000 = 2s).
+        Strings com unidade explícita ('s' ou 'ms') também são aceitas.
+        """
         if isinstance(value, bool):
-            raise FlowError(f"{name} deve ser um número de segundos ou milissegundos.")
+            raise FlowError(
+                f"{name} deve ser um número (ms) ou conter unidade ('s'/'ms')."
+            )
         if isinstance(value, str):
             val_str = value.strip().lower()
             if val_str.endswith("ms"):
@@ -339,15 +349,20 @@ class FlowRunner:
                 except ValueError:
                     raise FlowError(f"{name} com 's' inválido: {value}") from None
             try:
-                value = float(val_str)
+                ms = float(val_str)
+                if ms < 0:
+                    raise ValueError
+                return ms / 1000.0
             except ValueError:
                 raise FlowError(
-                    f"{name} deve ser um número de segundos ou milissegundos."
+                    f"{name} deve ser um número (ms) ou conter unidade ('s'/'ms')."
                 ) from None
 
         if not isinstance(value, (int, float)) or value < 0:
-            raise FlowError(f"{name} deve ser um número de segundos >= 0.")
-        return float(value)
+            raise FlowError(f"{name} deve ser um número de milissegundos >= 0.")
+        return float(value) / 1000.0
+
+    _parse_seconds = _parse_duration
 
     @staticmethod
     def _parse_text(value: Any) -> str:
@@ -362,9 +377,11 @@ class FlowRunner:
     ) -> tuple[dict[str, Any] | None, str, float, bool]:
         if isinstance(value, dict):
             val = dict(value)
-            timeout = self._parse_seconds(
-                val.pop("timeout", self.default_timeout), name="timeout"
-            )
+            raw_timeout = val.pop("timeout", None)
+            if raw_timeout is None:
+                timeout = self.default_timeout
+            else:
+                timeout = self._parse_duration(raw_timeout, name="timeout")
             raw_transliterate = val.pop("transliterate", self._transliterate)
             if not isinstance(raw_transliterate, bool):
                 raise FlowError(
@@ -614,7 +631,7 @@ class FlowRunner:
         self.driver.back()
 
     def _sleep(self, value: Any) -> None:
-        self.driver.wait(self._parse_seconds(value))
+        self.driver.wait(self._parse_duration(value, name="sleep"))
 
     # ------------------------------------------------------------------
     # Polling da tela
