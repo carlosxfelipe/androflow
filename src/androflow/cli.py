@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Annotated
 
@@ -56,13 +57,31 @@ def test_flow(
             help="Desativa animações do Android via ADB antes da execução.",
         ),
     ] = False,
+    env: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--env",
+            "-e",
+            help="Variável de ambiente no formato CHAVE=VALOR (pode repetir).",
+        ),
+    ] = None,
 ) -> None:
     """Executa um fluxo YAML."""
     driver: AndroidDriver = ctx.obj["driver"]
     if disable_animations and hasattr(driver, "disable_animations"):
         typer.echo("Desativando animações do Android via ADB...")
         driver.disable_animations()
-    runner = FlowRunner(driver, echo=typer.echo)
+
+    cli_env: dict[str, str] = {}
+    if env:
+        for item in env:
+            if "=" in item:
+                k, v = item.split("=", 1)
+                cli_env[k.strip()] = v.strip()
+            else:
+                cli_env[item.strip()] = os.environ.get(item.strip(), "")
+
+    runner = FlowRunner(driver, env=cli_env, echo=typer.echo)
     try:
         result = runner.run(flow)
     except (AndroidError, FlowError) as exc:

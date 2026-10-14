@@ -282,3 +282,34 @@ class AndroidDriver:
             "animator_duration_scale",
         ):
             self.shell("settings", "put", "global", setting, "1")
+
+    def grant_permission(self, app_id: str, permission: str) -> None:
+        """Concede permissão de tempo de execução ao app via pm grant."""
+        perm = (
+            f"android.permission.{permission}"
+            if not permission.startswith("android.permission.")
+            and "." not in permission
+            else permission
+        )
+        self.shell("pm", "grant", app_id, perm)
+
+    def revoke_permission(self, app_id: str, permission: str) -> None:
+        """Revoga permissão de tempo de execução do app via pm revoke."""
+        perm = (
+            f"android.permission.{permission}"
+            if not permission.startswith("android.permission.")
+            and "." not in permission
+            else permission
+        )
+        self.shell("pm", "revoke", app_id, perm)
+
+    def wake_up_and_unlock(self) -> None:
+        """Acorda a tela do dispositivo e destrava o bloqueio se necessário."""
+        self.shell("input", "keyevent", "KEYCODE_WAKEUP")
+        self.shell("wm", "dismiss-keyguard")
+
+    def dismiss_system_dialogs(self) -> None:
+        """Fecha diálogos do sistema (popups, avisos de sistema)."""
+        self.shell(
+            "am", "broadcast", "-a", "android.intent.action.CLOSE_SYSTEM_DIALOGS"
+        )

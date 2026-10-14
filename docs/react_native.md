@@ -162,7 +162,7 @@ No modo de desenvolvimento (Debug com Metro bundler), o aplicativo pode demorar 
 - launchApp
 - waitFor:
     resourceId: "screen_home"
-    timeout: 15
+    timeout: 15000 # ou timeout: "15s"
 ```
 
 - Em builds **Release** ou **Staging** (APKs pré-compilados com `./gradlew assembleRelease`), a inicialização é praticamente instantânea, tornando os testes mais rápidos e estáveis.
@@ -283,7 +283,7 @@ appId: com.meuapp
 - launchApp
 - waitFor:
     id: "screen_login"
-    timeout: 10
+    timeout: 10000 # ou timeout: "10s"
 
 # Foco automático e digitação em um único comando:
 - inputText:

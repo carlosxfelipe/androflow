@@ -161,3 +161,27 @@ def test_disable_and_enable_animations(driver: AndroidDriver):
         ("settings", "put", "global", "transition_animation_scale", "1"),
         ("settings", "put", "global", "animator_duration_scale", "1"),
     ]
+
+
+def test_grant_and_revoke_permission(driver: AndroidDriver):
+    driver.grant_permission("com.demo", "POST_NOTIFICATIONS")
+    driver.grant_permission("com.demo", "android.permission.CAMERA")
+    driver.revoke_permission("com.demo", "POST_NOTIFICATIONS")
+    assert driver.calls == [
+        ("pm", "grant", "com.demo", "android.permission.POST_NOTIFICATIONS"),
+        ("pm", "grant", "com.demo", "android.permission.CAMERA"),
+        ("pm", "revoke", "com.demo", "android.permission.POST_NOTIFICATIONS"),
+    ]
+
+
+def test_wake_up_and_dismiss_system_dialogs(driver: AndroidDriver):
+    driver.wake_up_and_unlock()
+    assert driver.calls == [
+        ("input", "keyevent", "KEYCODE_WAKEUP"),
+        ("wm", "dismiss-keyguard"),
+    ]
+    driver.calls.clear()
+    driver.dismiss_system_dialogs()
+    assert driver.calls == [
+        ("am", "broadcast", "-a", "android.intent.action.CLOSE_SYSTEM_DIALOGS"),
+    ]

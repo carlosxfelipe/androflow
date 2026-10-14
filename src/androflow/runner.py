@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import re
 import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
@@ -13,6 +15,68 @@ from .android import AndroidDriver, AndroidError
 from .selectors import UiElement, find_element, parse_elements, validate_selector
 
 Step = dict[str, Any]
+
+# Regex para variáveis de ambiente: ${VAR}, ${VAR:-default} ou ${VAR:default}
+_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^{}]*)|:([^{}]*))?\}")
+
+
+def load_env_file(path: str | Path = ".env") -> dict[str, str]:
+    """Lê variáveis de um arquivo .env se ele existir."""
+    env_vars: dict[str, str] = {}
+    p = Path(path)
+    if not p.is_file():
+        return env_vars
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" in line:
+            key, val = line.split("=", 1)
+            key = key.strip()
+            val = val.strip()
+            if (val.startswith('"') and val.endswith('"')) or (
+                val.startswith("'") and val.endswith("'")
+            ):
+                val = val[1:-1]
+            env_vars[key] = val
+    return env_vars
+
+
+def interpolate_string(text: str, env: dict[str, str]) -> str:
+    """Substitui ${VAR}, ${VAR:-padrao} ou ${VAR:padrao} pelo valor do ambiente."""
+    for _ in range(20):
+        if "${" not in text:
+            break
+        match = _VAR_RE.search(text)
+        if not match:
+            break
+        var_name = match.group(1)
+        default_val = match.group(2) if match.group(2) is not None else match.group(3)
+        if var_name in env and (env[var_name] != "" or match.group(2) is None):
+            val = env[var_name]
+        elif default_val is not None:
+            val = default_val
+        else:
+            raise FlowError(f"Variável de ambiente '{var_name}' não definida.")
+        text = text[: match.start()] + val + text[match.end() :]
+    return text
+
+
+def interpolate_data(data: Any, env: dict[str, str]) -> Any:
+    """Interpola recursivamente variáveis de ambiente em strings, dicts e listas."""
+    if isinstance(data, str):
+        return interpolate_string(data, env)
+    if isinstance(data, dict):
+        return {
+            (interpolate_string(k, env) if isinstance(k, str) else k): interpolate_data(
+                v, env
+            )
+            for k, v in data.items()
+        }
+    if isinstance(data, list):
+        return [interpolate_data(item, env) for item in data]
+    return data
+
 
 # Comandos cujo valor é um seletor (texto ou objeto YAML).
 _SELECTOR_COMMANDS = frozenset(
@@ -28,6 +92,8 @@ _VALUE_REQUIRED = _SELECTOR_COMMANDS | {
     "swipe",
     "repeat",
     "scrollUntilVisible",
+    "grantPermissions",
+    "revokePermissions",
 }
 
 
@@ -72,17 +138,21 @@ class FlowRunner:
         driver: AndroidDriver,
         default_timeout: float = 10,
         *,
+        env: dict[str, str] | None = None,
         artifacts_dir: str | Path = "artifacts",
         poll_interval: float = 0.25,
         echo: Callable[[str], None] = print,
     ) -> None:
         self.driver = driver
         self.default_timeout = default_timeout
+        self.env = dict(env or {})
         self.artifacts_dir = Path(artifacts_dir)
         self.poll_interval = poll_interval
         self.echo = echo
         self._app_id: str | None = None
         self._transliterate: bool = False
+        self._default_permissions: list[str] = []
+        self._default_wake_up: bool = False
         self._handlers: dict[str, Callable[[Any], None]] = {
             "launchApp": self._launch_app,
             "stopApp": self._stop_app,
@@ -104,13 +174,19 @@ class FlowRunner:
             "scrollUntilVisible": self._scroll_until_visible,
             "disableAnimations": self._disable_animations,
             "enableAnimations": self._enable_animations,
+            "grantPermissions": self._grant_permissions,
+            "revokePermissions": self._revoke_permissions,
+            "wakeUp": self._wake_up,
+            "dismissSystemDialogs": self._dismiss_system_dialogs,
         }
 
     # ------------------------------------------------------------------
     # Carregamento e validação
     # ------------------------------------------------------------------
 
-    def load_flow(self, path: str | Path) -> tuple[dict[str, Any], list[Step]]:
+    def load_flow(
+        self, path: str | Path, env: dict[str, str] | None = None
+    ) -> tuple[dict[str, Any], list[Step]]:
         flow_path = Path(path)
         try:
             docs = list(yaml.safe_load_all(flow_path.read_text(encoding="utf-8")))
@@ -120,20 +196,44 @@ class FlowRunner:
             raise FlowError(f"YAML inválido em {flow_path}: {exc}") from exc
 
         if len(docs) == 2 and isinstance(docs[0], dict) and isinstance(docs[1], list):
-            config, raw_steps = docs
+            raw_config, raw_steps = docs
         elif (
             len(docs) == 1
             and isinstance(docs[0], dict)
             and isinstance(docs[0].get("steps"), list)
         ):
-            config, raw_steps = docs[0], docs[0]["steps"]
+            raw_config, raw_steps = docs[0], docs[0]["steps"]
         else:
             raise FlowError(
                 "Formato esperado: cabeçalho com appId, separador '---' e lista de "
                 "comandos; ou um objeto com 'appId' e 'steps'."
             )
 
+        # Monta o ambiente: os.environ + .env + self.env + env da chamada + header env
+        resolved_env = dict(os.environ)
+        resolved_env.update(load_env_file(".env"))
+        resolved_env.update(self.env)
+        if env:
+            resolved_env.update(env)
+
+        if isinstance(raw_config.get("env"), dict):
+            for k, v in raw_config["env"].items():
+                if k not in self.env and (env is None or k not in env):
+                    resolved_env.setdefault(str(k), str(v))
+
+        config = interpolate_data(raw_config, resolved_env)
+        raw_steps = interpolate_data(raw_steps, resolved_env)
+
+        self._app_id = config.get("appId")
         self._transliterate = bool(config.get("transliterate", False))
+        self._default_wake_up = bool(config.get("wakeUp", False))
+        raw_perms = config.get("permissions", [])
+        if isinstance(raw_perms, str):
+            self._default_permissions = [raw_perms]
+        elif isinstance(raw_perms, list) and all(isinstance(p, str) for p in raw_perms):
+            self._default_permissions = list(raw_perms)
+        else:
+            self._default_permissions = []
 
         # Valida o fluxo inteiro antes de executar qualquer etapa (fail-fast).
         steps: list[Step] = []
@@ -208,6 +308,21 @@ class FlowRunner:
                 if value is not None and not isinstance(value, bool):
                     raise FlowError(
                         f"{command}: aceita apenas valor booleano ou vazio."
+                    )
+            elif command in {"grantPermissions", "revokePermissions"}:
+                perms = [value] if isinstance(value, str) else value
+                if (
+                    not isinstance(perms, list)
+                    or not perms
+                    or not all(isinstance(p, str) for p in perms)
+                ):
+                    raise FlowError(
+                        f"{command}: informe uma permissão ou lista de permissões."
+                    )
+            elif command in {"wakeUp", "dismissSystemDialogs"}:
+                if value is not None and not isinstance(value, bool):
+                    raise FlowError(
+                        f"{command}: comando não aceita argumentos adicionais."
                     )
             elif command == "takeScreenshot" and not (
                 isinstance(value, str) and value.strip()
@@ -478,14 +593,17 @@ class FlowRunner:
 
         return selector, direction, max_scrolls, timeout
 
-    @staticmethod
-    def _launch_target(value: Any, default: str | None) -> tuple[str, bool, bool]:
-        """Retorna (appId, stopApp, clearState).
+    def _launch_target(
+        self, value: Any, default: str | None
+    ) -> tuple[str, bool, bool, list[str], bool]:
+        """Retorna (appId, stopApp, clearState, permissions, wakeUp).
 
         Como no Maestro, stopApp é true por padrão.
         """
         stop_app: Any = True
         clear_state: Any = False
+        permissions: list[str] = list(self._default_permissions)
+        wake_up: Any = self._default_wake_up
         if value is None:
             package = default
         elif isinstance(value, str):
@@ -494,6 +612,19 @@ class FlowRunner:
             package = value.get("appId", default)
             stop_app = value.get("stopApp", True)
             clear_state = value.get("clearState", False)
+            wake_up = value.get("wakeUp", self._default_wake_up)
+            if "permissions" in value:
+                raw_perms = value["permissions"]
+                if isinstance(raw_perms, str):
+                    permissions = [raw_perms]
+                elif isinstance(raw_perms, list) and all(
+                    isinstance(p, str) for p in raw_perms
+                ):
+                    permissions = list(raw_perms)
+                else:
+                    raise FlowError(
+                        "launchApp: permissions deve ser uma lista de permissões."
+                    )
         else:
             raise FlowError(
                 "launchApp: use '- launchApp', '- launchApp: <appId>' "
@@ -505,7 +636,9 @@ class FlowRunner:
             raise FlowError("launchApp: stopApp deve ser true ou false.")
         if not isinstance(clear_state, bool):
             raise FlowError("launchApp: clearState deve ser true ou false.")
-        return str(package), stop_app, clear_state
+        if not isinstance(wake_up, bool):
+            raise FlowError("launchApp: wakeUp deve ser true ou false.")
+        return str(package), stop_app, clear_state, permissions, wake_up
 
     def _screenshot_path(self, value: Any) -> Path:
         path = Path(str(value))
@@ -579,11 +712,19 @@ class FlowRunner:
     # ------------------------------------------------------------------
 
     def _launch_app(self, value: Any) -> None:
-        package, stop_app, clear_state = self._launch_target(value, self._app_id)
+        package, stop_app, clear_state, permissions, wake_up = self._launch_target(
+            value, self._app_id
+        )
+        self._app_id = package
+        if wake_up and hasattr(self.driver, "wake_up_and_unlock"):
+            self.driver.wake_up_and_unlock()
         if clear_state and hasattr(self.driver, "clear_app"):
             self.driver.clear_app(package)
         if stop_app:
             self.driver.stop_app(package)
+        if permissions and hasattr(self.driver, "grant_permission"):
+            for perm in permissions:
+                self.driver.grant_permission(package, perm)
         self.driver.launch_app(package)
 
     def _stop_app(self, value: Any) -> None:
@@ -750,6 +891,30 @@ class FlowRunner:
                 self.driver.disable_animations()
         elif hasattr(self.driver, "enable_animations"):
             self.driver.enable_animations()
+
+    def _grant_permissions(self, value: Any) -> None:
+        if not self._app_id:
+            raise FlowError("grantPermissions: declare 'appId' no cabeçalho do fluxo.")
+        perms = [value] if isinstance(value, str) else value
+        if hasattr(self.driver, "grant_permission"):
+            for perm in perms:
+                self.driver.grant_permission(self._app_id, perm)
+
+    def _revoke_permissions(self, value: Any) -> None:
+        if not self._app_id:
+            raise FlowError("revokePermissions: declare 'appId' no cabeçalho do fluxo.")
+        perms = [value] if isinstance(value, str) else value
+        if hasattr(self.driver, "revoke_permission"):
+            for perm in perms:
+                self.driver.revoke_permission(self._app_id, perm)
+
+    def _wake_up(self, _value: Any) -> None:
+        if hasattr(self.driver, "wake_up_and_unlock"):
+            self.driver.wake_up_and_unlock()
+
+    def _dismiss_system_dialogs(self, _value: Any) -> None:
+        if hasattr(self.driver, "dismiss_system_dialogs"):
+            self.driver.dismiss_system_dialogs()
 
     # ------------------------------------------------------------------
     # Polling da tela

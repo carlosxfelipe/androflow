@@ -72,7 +72,7 @@ uv run androflow --serial emulator-5554 test flows/settings_search.yaml
 
 ## Comandos implementados
 
-- `launchApp`: inicia o app via `monkey` usando `appId` (suporta `stopApp: true/false` e `clearState: true/false`).
+- `launchApp`: inicia o app via `monkey` usando `appId` (suporta `stopApp: true/false`, `clearState: true/false`, `permissions: [...]` e `wakeUp: true`).
 - `stopApp`: força a parada do app via `am force-stop`.
 - `tapOn`: toca em um elemento localizado por `text`, `resourceId`, `contentDesc` ou `id`; também aceita `point: [x, y]`, `point: "x, y"` ou percentual `point: "50%, 50%"`.
 - `inputText`: digita texto no campo focado ou recebe um seletor para tocar e focar automaticamente (`{id: "campo", text: "..."}`). Suporta `transliterate: true` para normalizar acentos.
@@ -90,6 +90,10 @@ uv run androflow --serial emulator-5554 test flows/settings_search.yaml
 - `back`: aciona o botão Voltar do Android.
 - `sleep`: pausa a execução em milissegundos (`2000`, `500`) ou com unidades explícitas (`"2s"`, `"500ms"`).
 - `scrollUntilVisible`: rola a tela até que o elemento fique visível (ex.: `- scrollUntilVisible: "Excluir"` ou `{id: "btn", direction: DOWN, maxScrolls: 10}`).
+- `grantPermissions`: concede permissões de tempo de execução via `pm grant` (ex.: `- grantPermissions: POST_NOTIFICATIONS` ou lista `- grantPermissions: [CAMERA, ACCESS_FINE_LOCATION]`).
+- `revokePermissions`: revoga permissões de tempo de execução via `pm revoke`.
+- `wakeUp`: acorda a tela do dispositivo (`KEYCODE_WAKEUP`) e desbloqueia a tela (`wm dismiss-keyguard`).
+- `dismissSystemDialogs`: fecha diálogos e popups do sistema Android via broadcast (`CLOSE_SYSTEM_DIALOGS`).
 - `disableAnimations`: desativa animações do Android via ADB para acelerar testes e eliminar flakiness. Suporta também `disableAnimations: true` no cabeçalho YAML e flag `--disable-animations` na CLI.
 - `enableAnimations`: restaura as animações do Android para a escala padrão (1.0).
 
@@ -131,6 +135,76 @@ Chaves desconhecidas no seletor (ex.: `txt:`) geram erro de validação antecipa
 - O fluxo inteiro é validado antes de executar a primeira etapa: comandos desconhecidos, valores ausentes (`- inputText` sem texto) e seletores inválidos são reportados com o número da etapa.
 - A execução para na primeira falha e o resumo mostra etapas `ok`, `falha` e `puladas`.
 - Ao falhar, são salvos `artifacts/<fluxo>-falha-<etapa>.png` e `.xml` (hierarquia da tela) para depuração.
+
+## Variáveis de Ambiente e Interpolação (${VAR})
+
+O AndroFlow suporta interpolação dinâmica de variáveis de ambiente em qualquer campo do fluxo YAML (inclusive seletores, textos digitados, URLs e cabeçalho `appId`):
+
+```yaml
+appId: ${APP_PKG:-com.exemplo.app}
+env:
+  BASE_URL: https://staging.exemplo.com
+---
+- launchApp
+- inputText:
+    id: "email"
+    text: "${USER_EMAIL}"
+- inputText:
+    id: "senha"
+    text: "${USER_PASS:123456}"
+- openLink: "${BASE_URL}/boas-vindas"
+```
+
+### Sintaxe de Variáveis:
+
+- `${VAR}`: substitui pelo valor exato da variável. Se não existir, falha com erro antecipado.
+- `${VAR:-padrao}` ou `${VAR:padrao}`: usa `padrao` como fallback se a variável não estiver definida.
+
+### Hierarquia de Resolução:
+
+1. Valores passados via CLI `--env` / `-e CHAVE=VALOR` (maior precedência).
+2. Variáveis definidas no cabeçalho do YAML (`env:`).
+3. Arquivo `.env` na raiz do projeto (carregado automaticamente).
+4. Variáveis de ambiente do sistema operacional (`os.environ`).
+
+Exemplo via linha de comando:
+
+```bash
+uv run androflow test flow.yaml -e USER_EMAIL="qa@empresa.com" -e USER_PASS="segredo"
+```
+
+## Estabilidade e Performance no ADB
+
+O AndroFlow inclui otimizações nativas de ADB para eliminar _flakiness_ e acelerar a execução:
+
+- **Desativação de animações:** O erro `could not get idle state` do Android ocorre com frequência em telas com spinners ou transições contínuas. Desativar animações acelera os testes em até 3x:
+  ```bash
+  uv run androflow test flow.yaml --disable-animations
+  ```
+  Ou diretamente no cabeçalho do fluxo:
+  ```yaml
+  appId: com.exemplo.app
+  disableAnimations: true
+  ---
+  ```
+- **Concessão automática de permissões:** Evite popups intrusivos concedendo permissões em tempo de execução via `pm grant`:
+  ```yaml
+  appId: com.exemplo.app
+  permissions:
+    - POST_NOTIFICATIONS
+    - ACCESS_FINE_LOCATION
+  ---
+  - launchApp:
+      clearState: true
+  ```
+- **Wake Up & Unlock:** Garanta que a tela do emulador/dispositivo esteja ligada e desbloqueada antes ou durante os testes:
+  ```yaml
+  - wakeUp
+  # Ou diretamente no launchApp:
+  - launchApp:
+      wakeUp: true
+  ```
+- **Fechamento de Diálogos do Sistema:** Feche alertas e popups do sistema operacional com `- dismissSystemDialogs`.
 
 ## Limitações conhecidas
 

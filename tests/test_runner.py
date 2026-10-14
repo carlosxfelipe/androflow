@@ -82,6 +82,18 @@ class FakeDriver:
     def enable_animations(self):
         self.actions.append(("enable_animations",))
 
+    def grant_permission(self, app_id, permission):
+        self.actions.append(("grant_permission", app_id, permission))
+
+    def revoke_permission(self, app_id, permission):
+        self.actions.append(("revoke_permission", app_id, permission))
+
+    def wake_up_and_unlock(self):
+        self.actions.append(("wake_up_and_unlock",))
+
+    def dismiss_system_dialogs(self):
+        self.actions.append(("dismiss_system_dialogs",))
+
     def screen_size(self):
         return (1000, 2000)
 
@@ -149,6 +161,10 @@ def test_unknown_command_fails_before_running_any_step(tmp_path: Path):
         ("- scrollUntilVisible:\n    direction: INVALID\n    text: X\n", "direction"),
         ("- scrollUntilVisible:\n    maxScrolls: 0\n    text: X\n", "maxScrolls"),
         ("- disableAnimations: 123\n", "disableAnimations"),
+        ("- grantPermissions\n", "grantPermissions"),
+        ("- grantPermissions: 123\n", "grantPermissions"),
+        ("- wakeUp: 123\n", "wakeUp"),
+        ("- dismissSystemDialogs: 123\n", "dismissSystemDialogs"),
     ],
 )
 def test_rejects_invalid_step_values(tmp_path: Path, body: str, match: str):
@@ -537,4 +553,128 @@ def test_disable_animations_flow_and_steps(tmp_path: Path):
         ("disable_animations",),
         ("enable_animations",),
         ("disable_animations",),
+    ]
+
+
+def test_env_interpolation_in_flow(tmp_path: Path):
+    flow_file = tmp_path / "flow.yaml"
+    flow_file.write_text(
+        "appId: ${APP_PKG}\n"
+        "env:\n"
+        "  BASE_URL: https://example.com\n"
+        "  DEFAULT_USER: convidado\n"
+        "---\n"
+        "- launchApp\n"
+        "- inputText: ${USER:-${DEFAULT_USER}}\n"
+        "- inputText: ${PASSWORD:segredo123}\n"
+        "- openLink: ${BASE_URL}/login\n"
+    )
+    driver = FakeDriver()
+    runner = FlowRunner(
+        driver,
+        env={"APP_PKG": "com.exemplo.app", "USER": "carlos"},
+        artifacts_dir=tmp_path / "artifacts",
+    )
+    config, steps = runner.load_flow(flow_file)
+    assert config["appId"] == "com.exemplo.app"
+    assert steps[1] == {"inputText": "carlos"}
+    assert steps[2] == {"inputText": "segredo123"}
+    assert steps[3] == {"openLink": "https://example.com/login"}
+
+
+def test_env_missing_variable_raises(tmp_path: Path):
+    flow_file = tmp_path / "flow.yaml"
+    flow_file.write_text("appId: com.demo\n---\n- inputText: ${INEXISTENTE}\n")
+    driver = FakeDriver()
+    runner = FlowRunner(driver, artifacts_dir=tmp_path / "artifacts")
+    with pytest.raises(
+        FlowError, match="Variável de ambiente 'INEXISTENTE' não definida"
+    ):
+        runner.load_flow(flow_file)
+
+
+def test_env_file_loading(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "# Comentário\nAPP_NAME=meu_app\nAPI_KEY='12345'\nSECRET=\"token\"\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    flow_file = tmp_path / "flow.yaml"
+    flow_file.write_text("appId: com.${APP_NAME}\n---\n- inputText: ${API_KEY}\n")
+    driver = FakeDriver()
+    runner = FlowRunner(driver, artifacts_dir=tmp_path / "artifacts")
+    config, steps = runner.load_flow(flow_file)
+    assert config["appId"] == "com.meu_app"
+    assert steps[0] == {"inputText": "12345"}
+
+
+def test_launch_app_with_permissions_and_wake_up(tmp_path: Path):
+    flow_file = tmp_path / "flow.yaml"
+    flow_file.write_text(
+        "appId: com.demo\n"
+        "wakeUp: true\n"
+        "permissions:\n"
+        "  - POST_NOTIFICATIONS\n"
+        "---\n"
+        "- launchApp\n"
+    )
+    driver = FakeDriver()
+    runner = FlowRunner(driver, artifacts_dir=tmp_path / "artifacts")
+    res = runner.run(flow_file)
+    assert res.ok
+    assert driver.actions == [
+        ("wake_up_and_unlock",),
+        ("stop_app", "com.demo"),
+        ("grant_permission", "com.demo", "POST_NOTIFICATIONS"),
+        ("launch_app", "com.demo"),
+    ]
+
+
+def test_launch_app_custom_permissions_override(tmp_path: Path):
+    flow_file = tmp_path / "flow.yaml"
+    flow_file.write_text(
+        "appId: com.demo\n---\n- launchApp:\n    permissions:\n      - CAMERA\n"
+    )
+    driver = FakeDriver()
+    runner = FlowRunner(driver, artifacts_dir=tmp_path / "artifacts")
+    res = runner.run(flow_file)
+    assert res.ok
+    assert driver.actions == [
+        ("stop_app", "com.demo"),
+        ("grant_permission", "com.demo", "CAMERA"),
+        ("launch_app", "com.demo"),
+    ]
+
+
+def test_grant_and_revoke_permissions_steps(tmp_path: Path):
+    flow_file = tmp_path / "flow.yaml"
+    flow_file.write_text(
+        "appId: com.demo\n"
+        "---\n"
+        "- grantPermissions: RECORD_AUDIO\n"
+        "- grantPermissions:\n"
+        "    - ACCESS_FINE_LOCATION\n"
+        "- revokePermissions: RECORD_AUDIO\n"
+    )
+    driver = FakeDriver()
+    runner = FlowRunner(driver, artifacts_dir=tmp_path / "artifacts")
+    res = runner.run(flow_file)
+    assert res.ok
+    assert driver.actions == [
+        ("grant_permission", "com.demo", "RECORD_AUDIO"),
+        ("grant_permission", "com.demo", "ACCESS_FINE_LOCATION"),
+        ("revoke_permission", "com.demo", "RECORD_AUDIO"),
+    ]
+
+
+def test_wake_up_and_dismiss_system_dialogs(tmp_path: Path):
+    flow_file = tmp_path / "flow.yaml"
+    flow_file.write_text("appId: com.demo\n---\n- wakeUp\n- dismissSystemDialogs\n")
+    driver = FakeDriver()
+    runner = FlowRunner(driver, artifacts_dir=tmp_path / "artifacts")
+    res = runner.run(flow_file)
+    assert res.ok
+    assert driver.actions == [
+        ("wake_up_and_unlock",),
+        ("dismiss_system_dialogs",),
     ]
