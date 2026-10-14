@@ -27,6 +27,7 @@ _VALUE_REQUIRED = _SELECTOR_COMMANDS | {
     "openLink",
     "swipe",
     "repeat",
+    "scrollUntilVisible",
 }
 
 
@@ -100,6 +101,9 @@ class FlowRunner:
             "takeScreenshot": self._take_screenshot,
             "back": self._back,
             "sleep": self._sleep,
+            "scrollUntilVisible": self._scroll_until_visible,
+            "disableAnimations": self._disable_animations,
+            "enableAnimations": self._enable_animations,
         }
 
     # ------------------------------------------------------------------
@@ -198,6 +202,13 @@ class FlowRunner:
                 self._validate_repeat(value, app_id)
             elif command == "sleep":
                 self._parse_duration(value, name="sleep")
+            elif command == "scrollUntilVisible":
+                self._parse_scroll_until_visible_spec(value)
+            elif command in {"disableAnimations", "enableAnimations"}:
+                if value is not None and not isinstance(value, bool):
+                    raise FlowError(
+                        f"{command}: aceita apenas valor booleano ou vazio."
+                    )
             elif command == "takeScreenshot" and not (
                 isinstance(value, str) and value.strip()
             ):
@@ -408,6 +419,65 @@ class FlowRunner:
 
         return None, self._parse_text(value), self.default_timeout, self._transliterate
 
+    def _parse_scroll_until_visible_spec(
+        self, value: Any
+    ) -> tuple[dict[str, Any], str, int, float | None]:
+        if isinstance(value, str):
+            selector: dict[str, Any] = {"text": value}
+            direction = "DOWN"
+            max_scrolls = 10
+            timeout = None
+        elif isinstance(value, dict):
+            val = dict(value)
+            direction = str(val.pop("direction", "DOWN")).upper()
+            if direction not in {"DOWN", "UP", "LEFT", "RIGHT"}:
+                raise FlowError(
+                    "scrollUntilVisible: direction deve ser DOWN, UP, LEFT ou RIGHT."
+                )
+            raw_max_scrolls = val.pop("maxScrolls", 10)
+            if (
+                isinstance(raw_max_scrolls, bool)
+                or not isinstance(raw_max_scrolls, int)
+                or raw_max_scrolls <= 0
+            ):
+                raise FlowError(
+                    "scrollUntilVisible: maxScrolls deve ser um inteiro > 0."
+                )
+            max_scrolls = raw_max_scrolls
+
+            raw_timeout = val.pop("timeout", None)
+            timeout = (
+                None
+                if raw_timeout is None
+                else self._parse_duration(raw_timeout, name="timeout")
+            )
+
+            if "element" in val:
+                elem = val.pop("element")
+                if not isinstance(elem, dict):
+                    raise FlowError(
+                        "scrollUntilVisible: 'element' deve ser um objeto seletor."
+                    )
+                selector = dict(elem)
+                if val:
+                    raise FlowError(
+                        f"scrollUntilVisible: chave(s) desconhecida(s): "
+                        f"{', '.join(sorted(val))}."
+                    )
+            else:
+                selector = val
+        else:
+            raise FlowError(
+                "scrollUntilVisible: seletor deve ser texto ou objeto YAML."
+            )
+
+        try:
+            validate_selector(selector)
+        except ValueError as exc:
+            raise FlowError(f"scrollUntilVisible: {exc}") from exc
+
+        return selector, direction, max_scrolls, timeout
+
     @staticmethod
     def _launch_target(value: Any, default: str | None) -> tuple[str, bool, bool]:
         """Retorna (appId, stopApp, clearState).
@@ -454,6 +524,11 @@ class FlowRunner:
         config, steps = self.load_flow(flow_path)
         self._app_id = config.get("appId")
         self._transliterate = bool(config.get("transliterate", False))
+        if config.get("disableAnimations") is True and hasattr(
+            self.driver, "disable_animations"
+        ):
+            self.echo("Desativando animações do Android via ADB...")
+            self.driver.disable_animations()
         result = FlowResult(path=flow_path, total=len(steps))
         self.echo(f"AndroFlow: {flow_path} ({len(steps)} etapas)")
         for index, step in enumerate(steps, start=1):
@@ -632,6 +707,49 @@ class FlowRunner:
 
     def _sleep(self, value: Any) -> None:
         self.driver.wait(self._parse_duration(value, name="sleep"))
+
+    def _scroll_until_visible(self, value: Any) -> None:
+        selector, direction, max_scrolls, timeout = (
+            self._parse_scroll_until_visible_spec(value)
+        )
+        deadline = time.monotonic() + timeout if timeout is not None else None
+
+        if self._find(selector, timeout=0) is not None:
+            return
+
+        for _ in range(max_scrolls):
+            if deadline is not None and time.monotonic() >= deadline:
+                break
+            if hasattr(self.driver, "scroll"):
+                self.driver.scroll(direction)
+            if self.poll_interval > 0:
+                time.sleep(self.poll_interval)
+            if self._find(selector, timeout=0) is not None:
+                return
+
+        if deadline is not None:
+            remaining = max(0.0, deadline - time.monotonic())
+            if remaining > 0 and self._find(selector, timeout=remaining) is not None:
+                return
+
+        raise FlowError(
+            f"scrollUntilVisible: elemento não encontrado após {max_scrolls} "
+            f"rolagens: {selector}"
+        )
+
+    def _disable_animations(self, value: Any) -> None:
+        if value is False:
+            if hasattr(self.driver, "enable_animations"):
+                self.driver.enable_animations()
+        elif hasattr(self.driver, "disable_animations"):
+            self.driver.disable_animations()
+
+    def _enable_animations(self, value: Any) -> None:
+        if value is False:
+            if hasattr(self.driver, "disable_animations"):
+                self.driver.disable_animations()
+        elif hasattr(self.driver, "enable_animations"):
+            self.driver.enable_animations()
 
     # ------------------------------------------------------------------
     # Polling da tela

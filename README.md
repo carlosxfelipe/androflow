@@ -32,7 +32,7 @@ appId: com.android.settings
 - tapOn: "Search Settings"
 - waitFor:
     resourceId: "open_search_view_edit_text"
-    timeout: 5
+    timeout: 5000
 - inputText: "dark theme"
 - assertVisible: "Standard dark theme"
 - takeScreenshot: "settings-busca.png"
@@ -89,6 +89,9 @@ uv run androflow --serial emulator-5554 test flows/settings_search.yaml
 - `takeScreenshot`: salva uma captura de tela. Caminhos relativos são salvos em `artifacts/` (`.png` é adicionado se faltar).
 - `back`: aciona o botão Voltar do Android.
 - `sleep`: pausa a execução em milissegundos (`2000`, `500`) ou com unidades explícitas (`"2s"`, `"500ms"`).
+- `scrollUntilVisible`: rola a tela até que o elemento fique visível (ex.: `- scrollUntilVisible: "Excluir"` ou `{id: "btn", direction: DOWN, maxScrolls: 10}`).
+- `disableAnimations`: desativa animações do Android via ADB para acelerar testes e eliminar flakiness. Suporta também `disableAnimations: true` no cabeçalho YAML e flag `--disable-animations` na CLI.
+- `enableAnimations`: restaura as animações do Android para a escala padrão (1.0).
 
 ### Seletores
 

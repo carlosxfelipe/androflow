@@ -76,6 +76,12 @@ class FakeDriver:
     def open_link(self, url):
         self.actions.append(("open_link", url))
 
+    def disable_animations(self):
+        self.actions.append(("disable_animations",))
+
+    def enable_animations(self):
+        self.actions.append(("enable_animations",))
+
     def screen_size(self):
         return (1000, 2000)
 
@@ -139,6 +145,10 @@ def test_unknown_command_fails_before_running_any_step(tmp_path: Path):
         ("- waitFor:\n    text: X\n    timeout: abc\n", "timeout"),
         ("- inputText: yes\n", "inputText"),
         ('- launchApp:\n    stopApp: "sim"\n', "stopApp"),
+        ("- scrollUntilVisible\n", "scrollUntilVisible"),
+        ("- scrollUntilVisible:\n    direction: INVALID\n    text: X\n", "direction"),
+        ("- scrollUntilVisible:\n    maxScrolls: 0\n    text: X\n", "maxScrolls"),
+        ("- disableAnimations: 123\n", "disableAnimations"),
     ],
 )
 def test_rejects_invalid_step_values(tmp_path: Path, body: str, match: str):
@@ -473,3 +483,58 @@ def test_input_text_flow_header_transliterate_default(tmp_path: Path):
     res = runner.run(flow_file)
     assert res.ok
     assert driver.actions == [("type_text", "Cartão", True)]
+
+
+def test_scroll_until_visible_already_visible(tmp_path: Path):
+    driver = FakeDriver([LOGIN_SCREEN])
+    runner = make_runner(driver, tmp_path)
+    runner.execute("scrollUntilVisible", "Entrar")
+    assert not any(action[0] == "scroll" for action in driver.actions)
+
+
+def test_scroll_until_visible_after_scrolling(tmp_path: Path):
+    driver = FakeDriver([EMPTY_SCREEN, EMPTY_SCREEN, LOGIN_SCREEN])
+    runner = make_runner(driver, tmp_path)
+    runner.execute(
+        "scrollUntilVisible",
+        {"text": "Entrar", "direction": "DOWN", "maxScrolls": 5},
+    )
+    scroll_count = sum(1 for a in driver.actions if a == ("scroll", "DOWN"))
+    assert scroll_count == 2
+
+
+def test_scroll_until_visible_with_element_dict(tmp_path: Path):
+    driver = FakeDriver([EMPTY_SCREEN, LOGIN_SCREEN])
+    runner = make_runner(driver, tmp_path)
+    runner.execute(
+        "scrollUntilVisible",
+        {"element": {"id": "login"}, "direction": "UP", "maxScrolls": 3},
+    )
+    assert ("scroll", "UP") in driver.actions
+
+
+def test_scroll_until_visible_fails_when_not_found(tmp_path: Path):
+    driver = FakeDriver([EMPTY_SCREEN])
+    runner = make_runner(driver, tmp_path)
+    with pytest.raises(FlowError, match="não encontrado após 2 rolagens"):
+        runner.execute(
+            "scrollUntilVisible",
+            {"text": "Inexistente", "maxScrolls": 2},
+        )
+
+
+def test_disable_animations_flow_and_steps(tmp_path: Path):
+    flow_file = tmp_path / "flow.yaml"
+    flow_file.write_text(
+        "appId: com.demo\ndisableAnimations: true\n---\n"
+        "- enableAnimations\n- disableAnimations\n"
+    )
+    driver = FakeDriver()
+    runner = FlowRunner(driver, artifacts_dir=tmp_path / "artifacts")
+    res = runner.run(flow_file)
+    assert res.ok
+    assert driver.actions == [
+        ("disable_animations",),
+        ("enable_animations",),
+        ("disable_animations",),
+    ]

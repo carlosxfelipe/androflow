@@ -264,3 +264,21 @@ class AndroidDriver:
 
     def wait(self, seconds: float) -> None:
         time.sleep(max(0, seconds))
+
+    def disable_animations(self) -> None:
+        """Desativa animações do Android via ADB para acelerar testes."""
+        for setting in (
+            "window_animation_scale",
+            "transition_animation_scale",
+            "animator_duration_scale",
+        ):
+            self.shell("settings", "put", "global", setting, "0")
+
+    def enable_animations(self) -> None:
+        """Restaura animações do Android para a escala padrão (1.0) via ADB."""
+        for setting in (
+            "window_animation_scale",
+            "transition_animation_scale",
+            "animator_duration_scale",
+        ):
+            self.shell("settings", "put", "global", setting, "1")

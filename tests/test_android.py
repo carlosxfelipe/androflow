@@ -145,3 +145,19 @@ def test_open_link(driver: AndroidDriver):
 def test_hide_keyboard(driver: AndroidDriver):
     driver.hide_keyboard()
     assert driver.calls == [("input", "keyevent", "KEYCODE_BACK")]
+
+
+def test_disable_and_enable_animations(driver: AndroidDriver):
+    driver.disable_animations()
+    assert driver.calls == [
+        ("settings", "put", "global", "window_animation_scale", "0"),
+        ("settings", "put", "global", "transition_animation_scale", "0"),
+        ("settings", "put", "global", "animator_duration_scale", "0"),
+    ]
+    driver.calls.clear()
+    driver.enable_animations()
+    assert driver.calls == [
+        ("settings", "put", "global", "window_animation_scale", "1"),
+        ("settings", "put", "global", "transition_animation_scale", "1"),
+        ("settings", "put", "global", "animator_duration_scale", "1"),
+    ]

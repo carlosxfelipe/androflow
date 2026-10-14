@@ -18,6 +18,7 @@ Este documento detalha as diferenças entre as duas abordagens e as motivações
 | **Seletor de ID**          | `id:` ou `resourceId:`                                                       | Apenas `id:`                                                                                                           | Flexibilidade entre forma curta (`id`) e nome técnico Android (`resourceId`).    |
 | **Digitação em campo**     | `- inputText:`<br>&nbsp;&nbsp;`id: "email"`<br>&nbsp;&nbsp;`text: "a@b.com"` | `- tapOn:`<br>&nbsp;&nbsp;`id: "email"`<br>`- inputText: "a@b.com"`                                                    | Foco automático integrado; corta o número de etapas pela metade.                 |
 | **Toque por coordenadas**  | `point: [100, 200]` ou `"50%,50%"`                                           | `point: "50%,50%"`                                                                                                     | Aceita lista de inteiros ou strings percentuais relativas à tela.                |
+| **Rolar até elemento**     | `- scrollUntilVisible: "Salvar"`<br>ou `{id: "btn", maxScrolls: 5}`          | `- scrollUntilVisible:`<br>&nbsp;&nbsp;`element:`<br>&nbsp;&nbsp;&nbsp;&nbsp;`id: "btn"`                               | Aceita string direta ou seletor plano no próprio objeto (sem aninhar `element`). |
 
 ---
 

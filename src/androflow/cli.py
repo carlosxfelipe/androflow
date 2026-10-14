@@ -49,9 +49,19 @@ def devices(ctx: typer.Context) -> None:
 def test_flow(
     ctx: typer.Context,
     flow: Annotated[Path, typer.Argument(help="Caminho do arquivo YAML.")],
+    disable_animations: Annotated[
+        bool,
+        typer.Option(
+            "--disable-animations",
+            help="Desativa animações do Android via ADB antes da execução.",
+        ),
+    ] = False,
 ) -> None:
     """Executa um fluxo YAML."""
     driver: AndroidDriver = ctx.obj["driver"]
+    if disable_animations and hasattr(driver, "disable_animations"):
+        typer.echo("Desativando animações do Android via ADB...")
+        driver.disable_animations()
     runner = FlowRunner(driver, echo=typer.echo)
     try:
         result = runner.run(flow)
