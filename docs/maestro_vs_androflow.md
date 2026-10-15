@@ -8,17 +8,18 @@ Este documento detalha as diferenças entre as duas abordagens e as motivações
 
 ## 1. Tabela Comparativa Rápida
 
-| Ação / Recurso             | AndroFlow (Enxuto)                                                           | Maestro (Legado)                                                                                                       | Vantagem do AndroFlow                                                            |
-| :------------------------- | :--------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------- |
-| **Aguardar elemento**      | `- waitFor: { id: "btn", timeout: 5000 }` (ou `"5s"`)                        | `- extendedWaitUntil:`<br>&nbsp;&nbsp;`visible:`<br>&nbsp;&nbsp;&nbsp;&nbsp;`id: "btn"`<br>&nbsp;&nbsp;`timeout: 5000` | Menos níveis de indentação; comando direto e autoexplicativo.                    |
-| **Pausar fluxo**           | `- sleep: 2000` (ou `"2s"`, `"500ms"`)                                       | `- sleep: 2000`                                                                                                        | Padrão em ms idêntico ao Maestro, com flexibilidade de unidades explícitas.      |
-| **Timeout de espera**      | `timeout: 5000` (ou `"5s"`)                                                  | `timeout: 5000`                                                                                                        | Padrão em ms compatível com o ecossistema, além de aceitar unidades como `"5s"`. |
-| **Busca parcial de texto** | `text: "Tema", contains: true`                                               | `text: ".*Tema.*"`                                                                                                     | Não exige conhecimento de regex nem escape de caracteres.                        |
-| **Busca por regex**        | `text: "ID \\d+", regex: true`                                               | `text: "ID \\d+"`                                                                                                      | Intenção explícita; evita falso-positivos de regex acidental.                    |
-| **Seletor de ID**          | `id:` ou `resourceId:`                                                       | Apenas `id:`                                                                                                           | Flexibilidade entre forma curta (`id`) e nome técnico Android (`resourceId`).    |
-| **Digitação em campo**     | `- inputText:`<br>&nbsp;&nbsp;`id: "email"`<br>&nbsp;&nbsp;`text: "a@b.com"` | `- tapOn:`<br>&nbsp;&nbsp;`id: "email"`<br>`- inputText: "a@b.com"`                                                    | Foco automático integrado; corta o número de etapas pela metade.                 |
-| **Toque por coordenadas**  | `point: [100, 200]` ou `"50%,50%"`                                           | `point: "50%,50%"`                                                                                                     | Aceita lista de inteiros ou strings percentuais relativas à tela.                |
-| **Rolar até elemento**     | `- scrollUntilVisible: "Salvar"`<br>ou `{id: "btn", maxScrolls: 5}`          | `- scrollUntilVisible:`<br>&nbsp;&nbsp;`element:`<br>&nbsp;&nbsp;&nbsp;&nbsp;`id: "btn"`                               | Aceita string direta ou seletor plano no próprio objeto (sem aninhar `element`). |
+| Ação / Recurso             | AndroFlow (Enxuto)                                                                      | Maestro (Legado)                                                                                                                            | Vantagem do AndroFlow                                                                                                        |
+| :------------------------- | :-------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------- |
+| **Aguardar elemento**      | `- waitFor: { id: "btn", timeout: 5000 }` (ou `"5s"`)                                   | `- extendedWaitUntil:`<br>&nbsp;&nbsp;`visible:`<br>&nbsp;&nbsp;&nbsp;&nbsp;`id: "btn"`<br>&nbsp;&nbsp;`timeout: 5000`                      | Menos níveis de indentação; comando direto e autoexplicativo.                                                                |
+| **Pausar fluxo**           | `- sleep: 2000` (ou `"2s"`, `"500ms"`)                                                  | `- sleep: 2000`                                                                                                                             | Padrão em ms idêntico ao Maestro, com flexibilidade de unidades explícitas.                                                  |
+| **Timeout de espera**      | `timeout: 5000` (ou `"5s"`)                                                             | `timeout: 5000`                                                                                                                             | Padrão em ms compatível com o ecossistema, além de aceitar unidades como `"5s"`.                                             |
+| **Busca parcial de texto** | `text: "Tema", contains: true`                                                          | `text: ".*Tema.*"`                                                                                                                          | Não exige conhecimento de regex nem escape de caracteres.                                                                    |
+| **Busca por regex**        | `text: "ID \\d+", regex: true`                                                          | `text: "ID \\d+"`                                                                                                                           | Intenção explícita; evita falso-positivos de regex acidental.                                                                |
+| **Seletor de ID**          | `id:` ou `resourceId:`                                                                  | Apenas `id:`                                                                                                                                | Flexibilidade entre forma curta (`id`) e nome técnico Android (`resourceId`).                                                |
+| **Digitação em campo**     | `- inputText:`<br>&nbsp;&nbsp;`id: "email"`<br>&nbsp;&nbsp;`text: "a@b.com"`            | `- tapOn:`<br>&nbsp;&nbsp;`id: "email"`<br>`- inputText: "a@b.com"`                                                                         | Foco automático integrado; corta o número de etapas pela metade.                                                             |
+| **Toque por coordenadas**  | `point: [100, 200]` ou `"50%,50%"`                                                      | `point: "50%,50%"`                                                                                                                          | Aceita lista de inteiros ou strings percentuais relativas à tela.                                                            |
+| **Rolar até elemento**     | `- scrollUntilVisible: "Salvar"`<br>ou `{id: "btn", maxScrolls: 5}`                     | `- scrollUntilVisible:`<br>&nbsp;&nbsp;`element:`<br>&nbsp;&nbsp;&nbsp;&nbsp;`id: "btn"`                                                    | Aceita string direta ou seletor plano no próprio objeto (sem aninhar `element`).                                             |
+| **Gestão de permissões**   | `permissions:`<br>&nbsp;&nbsp;`- POST_NOTIFICATIONS`<br>ou `- grantPermissions: CAMERA` | `- launchApp:`<br>&nbsp;&nbsp;`permissions:`<br>&nbsp;&nbsp;&nbsp;&nbsp;`notifications: allow`<br>&nbsp;&nbsp;&nbsp;&nbsp;`location: allow` | Lista direta de permissões no cabeçalho ou `launchApp`, além de comandos dedicados (`grantPermissions`/`revokePermissions`). |
 
 ---
 
@@ -169,21 +170,65 @@ O AndroFlow permite embutir o seletor diretamente no comando `inputText`. Ele lo
 
 ---
 
+### 2.6 Gestão Direta de Permissões vs. Mapa Arbitrário
+
+#### No Maestro:
+
+O Maestro inventou um mapa semântico próprio que aceita apenas nomes genéricos com valor `allow`:
+
+```yaml
+- launchApp:
+    permissions:
+      all: allow
+      notifications: allow
+```
+
+#### No AndroFlow:
+
+No AndroFlow, você declara as permissões reais do Android como uma lista simples, tanto no cabeçalho quanto no comando de inicialização, ou dinamicamente como etapas do fluxo:
+
+```yaml
+# No cabeçalho (aplica a qualquer inicialização do fluxo):
+appId: com.meuapp
+permissions:
+  - POST_NOTIFICATIONS
+  - ACCESS_FINE_LOCATION
+---
+# Ou diretamente no launchApp:
+- launchApp:
+    permissions:
+      - CAMERA
+
+# Ou como comandos de etapa no meio do fluxo:
+- grantPermissions: RECORD_AUDIO
+- revokePermissions: CAMERA
+```
+
+#### Por que o AndroFlow é melhor:
+
+1. **Permissões Reais:** Não depende de o framework mapear cada nova permissão do Android (ex.: `POST_NOTIFICATIONS` do Android 13+) para palavras mágicas. Funciona com qualquer permissão nativa via `pm grant`.
+2. **Flexibilidade de Escopo:** Permite declarar permissões globais no cabeçalho ou conceder/revogar sob demanda durante o teste com `- grantPermissions` e `- revokePermissions`.
+3. **Prefixos Opcionais:** Aceita nomes curtos (`POST_NOTIFICATIONS`, `CAMERA`) ou nomes completos (`android.permission.CAMERA`).
+
+---
+
 ## 3. Comandos Úteis do Maestro Incorporados ao AndroFlow
 
 Embora tenhamos descartado as convenções burocráticas, mantivemos e implementamos no AndroFlow comandos essenciais e de alta utilidade:
 
-| Comando        | Exemplo                                                                         | Finalidade                                                                 |
-| :------------- | :------------------------------------------------------------------------------ | :------------------------------------------------------------------------- |
-| `pressKey`     | `- pressKey: Enter`<br>`- pressKey: Back`                                       | Aciona teclas físicas/virtuais do sistema Android.                         |
-| `eraseText`    | `- eraseText`<br>`- eraseText: 10`                                              | Apaga caracteres do campo em foco (50 por padrão ou quantidade informada). |
-| `hideKeyboard` | `- hideKeyboard`                                                                | Fecha o teclado virtual do Android de forma limpa.                         |
-| `scroll`       | `- scroll`                                                                      | Realiza rolagem vertical para baixo na tela.                               |
-| `swipe`        | `- swipe: { direction: UP }`<br>`- swipe: { start: "50%,80%", end: "50%,20%" }` | Executa gestos de deslize direcionais ou entre coordenadas.                |
-| `openLink`     | `- openLink: "https://meuapp.com/promo"`                                        | Abre URLs ou deep links diretamente no dispositivo.                        |
-| `stopApp`      | `- stopApp`                                                                     | Encerra a execução do app informado ou do cabeçalho.                       |
-| `clearState`   | `- launchApp: { clearState: true }`                                             | Limpa o cache e os dados do app (`pm clear`) antes de iniciar.             |
-| `repeat`       | `- repeat: { times: 3, commands: [...] }`                                       | Repete um conjunto de passos sem duplicação de YAML.                       |
+| Comando          | Exemplo                                                                         | Finalidade                                                                 |
+| :--------------- | :------------------------------------------------------------------------------ | :------------------------------------------------------------------------- |
+| `pressKey`       | `- pressKey: Enter`<br>`- pressKey: Back`                                       | Aciona teclas físicas/virtuais do sistema Android.                         |
+| `eraseText`      | `- eraseText`<br>`- eraseText: 10`                                              | Apaga caracteres do campo em foco (50 por padrão ou quantidade informada). |
+| `hideKeyboard`   | `- hideKeyboard`                                                                | Fecha o teclado virtual do Android de forma limpa.                         |
+| `scroll`         | `- scroll`                                                                      | Realiza rolagem vertical para baixo na tela.                               |
+| `swipe`          | `- swipe: { direction: UP }`<br>`- swipe: { start: "50%,80%", end: "50%,20%" }` | Executa gestos de deslize direcionais ou entre coordenadas.                |
+| `openLink`       | `- openLink: "https://meuapp.com/promo"`                                        | Abre URLs ou deep links diretamente no dispositivo.                        |
+| `stopApp`        | `- stopApp`                                                                     | Encerra a execução do app informado ou do cabeçalho.                       |
+| `clearState`     | `- launchApp: { clearState: true }`                                             | Limpa o cache e os dados do app (`pm clear`) antes de iniciar.             |
+| `repeat`         | `- repeat: { times: 3, commands: [...] }`                                       | Repete um conjunto de passos sem duplicação de YAML.                       |
+| `wakeUp`         | `- wakeUp`                                                                      | Acorda a tela (`KEYCODE_WAKEUP`) e desbloqueia o keyguard do dispositivo.  |
+| `dismissDialogs` | `- dismissSystemDialogs`                                                        | Fecha caixas de diálogo e popups do sistema operacional via broadcast.     |
 
 ---
 
