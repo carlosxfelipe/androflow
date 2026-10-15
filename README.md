@@ -54,6 +54,12 @@ Para ver recursos avançados (rolagem, gestos `swipe`, repetição `repeat`, bus
 uv run androflow test flows/settings_advanced.yaml
 ```
 
+Para testar os recursos de **variáveis de ambiente, estabilidade ADB, relatórios e gravação**, execute o fluxo de vitrine:
+
+```bash
+uv run androflow test flows/features_showcase.yaml --report --record
+```
+
 > **Atenção ao idioma do dispositivo:** Como os fluxos de demonstração interagem com o app nativo de Configurações do Android, atente-se ao idioma configurado no aparelho:
 >
 > - `flows/settings_search.yaml`: requer o emulador/dispositivo em **inglês** (`en-US`).
@@ -205,6 +211,45 @@ O AndroFlow inclui otimizações nativas de ADB para eliminar _flakiness_ e acel
       wakeUp: true
   ```
 - **Fechamento de Diálogos do Sistema:** Feche alertas e popups do sistema operacional com `- dismissSystemDialogs`.
+
+## Observabilidade e CI/CD
+
+O AndroFlow oferece recursos nativos de observabilidade para monitoramento e depuração visual de testes, especialmente em pipelines de integração contínua (GitHub Actions, GitLab CI):
+
+### 1. Gravação de Vídeo (`--record` / `-r`)
+
+Grava a tela do dispositivo Android nativamente via `adb shell screenrecord` e salva automaticamente o arquivo `.mp4` em `artifacts/`:
+
+```bash
+uv run androflow test flow.yaml --record
+```
+
+Ou ative diretamente no cabeçalho do fluxo:
+
+```yaml
+appId: com.exemplo.app
+record: true
+---
+```
+
+### 2. Relatórios de Teste (HTML e JUnit XML)
+
+Gere relatórios completos com um único comando ou parâmetros específicos:
+
+```bash
+# Gera automaticamente tanto o HTML quanto o JUnit XML na pasta artifacts/:
+uv run androflow test flow.yaml --report
+
+# Ou defina caminhos customizados:
+uv run androflow test flow.yaml --report-junit test-results/junit.xml --report-html artifacts/index.html
+```
+
+- **JUnit XML (`--report-junit`):** Padrão da indústria para CI/CD. No GitHub Actions ou GitLab CI, os resultados de cada etapa aparecem na aba nativa de _Checks/Tests_.
+- **HTML Report Interativo (`--report-html`):** Relatório visual moderno e autocontido (sem dependências externas de rede ou CDN), contendo:
+  - Resumo de métricas (status geral, total de etapas, aprovadas, falhas, puladas e duração total).
+  - Linha do tempo com duração em milissegundos de cada comando executado.
+  - Reprodutor de vídeo embutido (caso a execução tenha sido gravada com `--record`).
+  - Galeria com capturas de tela e detalhes colapsáveis em caso de falha.
 
 ## Limitações conhecidas
 

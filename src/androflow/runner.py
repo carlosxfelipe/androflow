@@ -107,6 +107,7 @@ class StepResult:
     command: str
     passed: bool
     error: str | None = None
+    duration: float = 0.0
 
 
 @dataclass
@@ -114,6 +115,9 @@ class FlowResult:
     path: Path
     total: int
     steps: list[StepResult] = field(default_factory=list)
+    duration: float = 0.0
+    video_path: Path | None = None
+    artifacts: list[Path] = field(default_factory=list)
 
     @property
     def passed(self) -> int:
@@ -153,6 +157,7 @@ class FlowRunner:
         self._transliterate: bool = False
         self._default_permissions: list[str] = []
         self._default_wake_up: bool = False
+        self._current_result: FlowResult | None = None
         self._handlers: dict[str, Callable[[Any], None]] = {
             "launchApp": self._launch_app,
             "stopApp": self._stop_app,
@@ -652,7 +657,7 @@ class FlowRunner:
     # Execução
     # ------------------------------------------------------------------
 
-    def run(self, path: str | Path) -> FlowResult:
+    def run(self, path: str | Path, *, record: bool = False) -> FlowResult:
         flow_path = Path(path)
         config, steps = self.load_flow(flow_path)
         self._app_id = config.get("appId")
@@ -662,27 +667,63 @@ class FlowRunner:
         ):
             self.echo("Desativando animações do Android via ADB...")
             self.driver.disable_animations()
+
+        should_record = record or bool(config.get("record", False))
+        recording_proc = None
+        video_dest = self.artifacts_dir / f"{flow_path.stem}.mp4"
+        if should_record and hasattr(self.driver, "start_recording"):
+            self.echo("Iniciando gravação de tela via ADB screenrecord...")
+            recording_proc = self.driver.start_recording()
+
         result = FlowResult(path=flow_path, total=len(steps))
+        self._current_result = result
+        flow_start = time.monotonic()
         self.echo(f"AndroFlow: {flow_path} ({len(steps)} etapas)")
-        for index, step in enumerate(steps, start=1):
-            command, value = next(iter(step.items()))
-            try:
-                self.execute(command, value)
-            except (FlowError, AndroidError, ValueError) as exc:
-                error = str(exc)
-            except Exception as exc:  # inesperado: mostra o tipo para depuração
-                error = f"{type(exc).__name__}: {exc}"
-            else:
-                result.steps.append(StepResult(index, command, passed=True))
-                self.echo(f"  PASS {index:02d} {command}")
-                continue
-            result.steps.append(StepResult(index, command, passed=False, error=error))
-            self.echo(f"  FAIL {index:02d} {command}: {error}")
-            self._capture_failure(flow_path, index)
-            break
+        try:
+            for index, step in enumerate(steps, start=1):
+                command, value = next(iter(step.items()))
+                step_start = time.monotonic()
+                try:
+                    self.execute(command, value)
+                except (FlowError, AndroidError, ValueError) as exc:
+                    error = str(exc)
+                except Exception as exc:  # inesperado: mostra o tipo para depuração
+                    error = f"{type(exc).__name__}: {exc}"
+                else:
+                    duration = round(time.monotonic() - step_start, 3)
+                    result.steps.append(
+                        StepResult(index, command, passed=True, duration=duration)
+                    )
+                    self.echo(
+                        f"  PASS {index:02d} {command} ({int(duration * 1000)}ms)"
+                    )
+                    continue
+                duration = round(time.monotonic() - step_start, 3)
+                result.steps.append(
+                    StepResult(
+                        index, command, passed=False, error=error, duration=duration
+                    )
+                )
+                self.echo(
+                    f"  FAIL {index:02d} {command}: {error} ({int(duration * 1000)}ms)"
+                )
+                self._capture_failure(flow_path, index)
+                break
+        finally:
+            result.duration = round(time.monotonic() - flow_start, 3)
+            if recording_proc is not None and hasattr(self.driver, "stop_recording"):
+                self.echo("Finalizando gravação de tela...")
+                saved_video = self.driver.stop_recording(recording_proc, video_dest)
+                if saved_video:
+                    result.video_path = saved_video
+                    result.artifacts.append(saved_video)
+                    self.echo(f"       Vídeo da execução: {saved_video}")
+            self._current_result = None
+
         self.echo(
             f"\nResultado: {result.passed} ok, {result.failed} falha(s), "
-            f"{result.skipped} pulada(s) de {result.total} etapas."
+            f"{result.skipped} pulada(s) de {result.total} etapas "
+            f"({result.duration:.2f}s)."
         )
         return result
 
@@ -702,6 +743,8 @@ class FlowRunner:
             root = self.driver.dump_hierarchy()
             xml.parent.mkdir(parents=True, exist_ok=True)
             ET.ElementTree(root).write(xml, encoding="utf-8", xml_declaration=True)
+            if self._current_result is not None:
+                self._current_result.artifacts.extend([png, xml])
         except (AndroidError, OSError) as exc:
             self.echo(f"       Não foi possível salvar artefatos da falha: {exc}")
             return
@@ -841,6 +884,11 @@ class FlowRunner:
     def _take_screenshot(self, value: Any) -> None:
         path = self._screenshot_path(value)
         self.driver.screenshot(path)
+        if (
+            self._current_result is not None
+            and path not in self._current_result.artifacts
+        ):
+            self._current_result.artifacts.append(path)
         self.echo(f"       Screenshot: {path}")
 
     def _back(self, _value: Any) -> None:

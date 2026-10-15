@@ -34,3 +34,38 @@ def test_cli_test_with_env_and_disable_animations_flags(tmp_path: Path, monkeypa
     assert result.exit_code == 0
     mock_driver.disable_animations.assert_called_once()
     mock_run.assert_called_once()
+
+
+def test_cli_test_with_record_and_reports(tmp_path: Path, monkeypatch):
+    flow_file = tmp_path / "flow.yaml"
+    flow_file.write_text("appId: com.demo\n---\n- sleep: 100\n")
+
+    mock_driver = MagicMock()
+    mock_run = MagicMock(return_value=FlowResult(path=flow_file, total=1))
+    mock_junit = MagicMock()
+    mock_html = MagicMock()
+
+    monkeypatch.setattr("androflow.cli.AndroidDriver", lambda serial=None: mock_driver)
+    monkeypatch.setattr("androflow.cli.FlowRunner.run", mock_run)
+    monkeypatch.setattr("androflow.cli.generate_junit_xml", mock_junit)
+    monkeypatch.setattr("androflow.cli.generate_html_report", mock_html)
+
+    junit_file = tmp_path / "out.xml"
+    html_file = tmp_path / "out.html"
+
+    result = runner.invoke(
+        app,
+        [
+            "test",
+            str(flow_file),
+            "--record",
+            "--report-junit",
+            str(junit_file),
+            "--report-html",
+            str(html_file),
+        ],
+    )
+    assert result.exit_code == 0
+    mock_run.assert_called_once_with(flow_file, record=True)
+    mock_junit.assert_called_once()
+    mock_html.assert_called_once()

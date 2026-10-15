@@ -1,0 +1,52 @@
+# Demonstração dos novos recursos do AndroFlow:
+# - Interpolação de variáveis de ambiente (${VAR:-default} e env:)
+# - Estabilidade de tela e ADB (wakeUp, dismissSystemDialogs, disableAnimations)
+# - Rolagem inteligente com scrollUntilVisible
+#
+# Execute:
+#   uv run androflow test flows/features_showcase.yaml --report --record
+#
+# Ou passando variáveis dinâmicas via CLI:
+#   uv run androflow test flows/features_showcase.yaml -e SEARCH_QUERY="display"
+
+appId: ${APP_ID:-com.android.settings}
+disableAnimations: true
+wakeUp: true
+
+env:
+  SEARCH_QUERY: "bateria"
+  MIN_TIMEOUT: 5000
+
+---
+# 1. Garante estabilidade antes de iniciar: acorda a tela e fecha popups residuais
+- wakeUp
+- dismissSystemDialogs
+
+# 2. Inicia o app limpo
+- launchApp:
+    stopApp: true
+
+# 3. Rola até encontrar a seção desejada usando scrollUntilVisible
+- scrollUntilVisible:
+    text: "Bateria"
+    direction: DOWN
+    maxScrolls: 5
+
+# 4. Busca configurações usando a variável de ambiente interpolada
+- tapOn: "Pesquise configurações"
+
+- waitFor:
+    id: "open_search_view_edit_text"
+    timeout: ${MIN_TIMEOUT}
+
+- inputText:
+    id: "open_search_view_edit_text"
+    text: "${SEARCH_QUERY}"
+    transliterate: true
+
+- takeScreenshot: "showcase-busca"
+
+# 5. Fecha teclado e retorna
+- hideKeyboard
+- pressKey: Back
+- back

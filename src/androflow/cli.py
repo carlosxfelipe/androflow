@@ -7,6 +7,7 @@ from typing import Annotated
 import typer
 
 from .android import AndroidDriver, AndroidError
+from .reports import generate_html_report, generate_junit_xml
 from .runner import FlowError, FlowRunner
 
 app = typer.Typer(
@@ -57,6 +58,35 @@ def test_flow(
             help="Desativa animações do Android via ADB antes da execução.",
         ),
     ] = False,
+    record: Annotated[
+        bool,
+        typer.Option(
+            "--record",
+            "-r",
+            help="Grava o vídeo da execução do fluxo e salva em artifacts/.",
+        ),
+    ] = False,
+    report_junit: Annotated[
+        Path | None,
+        typer.Option(
+            "--report-junit",
+            help="Caminho para gerar o relatório JUnit XML para CI/CD.",
+        ),
+    ] = None,
+    report_html: Annotated[
+        Path | None,
+        typer.Option(
+            "--report-html",
+            help="Caminho para gerar o relatório HTML visual e interativo.",
+        ),
+    ] = None,
+    report: Annotated[
+        bool,
+        typer.Option(
+            "--report",
+            help="Ativa a geração de relatórios HTML e JUnit XML em artifacts/.",
+        ),
+    ] = False,
     env: Annotated[
         list[str] | None,
         typer.Option(
@@ -72,6 +102,10 @@ def test_flow(
         typer.echo("Desativando animações do Android via ADB...")
         driver.disable_animations()
 
+    if report:
+        report_html = report_html or Path("artifacts/report.html")
+        report_junit = report_junit or Path("artifacts/report.xml")
+
     cli_env: dict[str, str] = {}
     if env:
         for item in env:
@@ -83,10 +117,18 @@ def test_flow(
 
     runner = FlowRunner(driver, env=cli_env, echo=typer.echo)
     try:
-        result = runner.run(flow)
+        result = runner.run(flow, record=record)
     except (AndroidError, FlowError) as exc:
         typer.echo(f"Erro: {exc}", err=True)
         raise typer.Exit(1) from exc
+
+    if report_junit:
+        generate_junit_xml(result, report_junit)
+        typer.echo(f"Relatório JUnit XML gerado em: {report_junit}")
+    if report_html:
+        generate_html_report(result, report_html)
+        typer.echo(f"Relatório HTML interativo gerado em: {report_html}")
+
     raise typer.Exit(0 if result.ok else 1)
 
 

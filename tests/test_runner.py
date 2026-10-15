@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from androflow.android import AndroidError
+from androflow.reports import generate_html_report, generate_junit_xml
 from androflow.runner import FlowError, FlowRunner
 
 LOGIN_SCREEN = (
@@ -93,6 +94,19 @@ class FakeDriver:
 
     def dismiss_system_dialogs(self):
         self.actions.append(("dismiss_system_dialogs",))
+
+    def start_recording(self, remote_path="/sdcard/androflow_record.mp4"):
+        self.actions.append(("start_recording", remote_path))
+        return "fake_proc"
+
+    def stop_recording(
+        self, process, destination, remote_path="/sdcard/androflow_record.mp4"
+    ):
+        self.actions.append(("stop_recording", process, Path(destination)))
+        dest = Path(destination)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"fake video")
+        return dest
 
     def screen_size(self):
         return (1000, 2000)
@@ -678,3 +692,49 @@ def test_wake_up_and_dismiss_system_dialogs(tmp_path: Path):
         ("wake_up_and_unlock",),
         ("dismiss_system_dialogs",),
     ]
+
+
+def test_flow_record_video(tmp_path: Path):
+    flow_file = tmp_path / "flow.yaml"
+    flow_file.write_text("appId: com.demo\n---\n- sleep: 100\n")
+    driver = FakeDriver()
+    runner = FlowRunner(driver, artifacts_dir=tmp_path / "artifacts")
+    res = runner.run(flow_file, record=True)
+    assert res.ok
+    assert any(a[0] == "start_recording" for a in driver.actions)
+    assert any(a[0] == "stop_recording" for a in driver.actions)
+    assert res.video_path is not None
+    assert res.video_path.exists()
+
+
+def test_generate_junit_xml(tmp_path: Path):
+    flow_file = tmp_path / "flow.yaml"
+    flow_file.write_text("appId: com.demo\n---\n- sleep: 100\n")
+    driver = FakeDriver()
+    runner = FlowRunner(driver, artifacts_dir=tmp_path / "artifacts")
+    res = runner.run(flow_file)
+
+    junit_dest = tmp_path / "junit.xml"
+    out = generate_junit_xml(res, junit_dest)
+    assert out.is_file()
+    xml_content = out.read_text(encoding="utf-8")
+    assert "<testsuites" in xml_content
+    assert 'name="flow"' in xml_content
+    assert "01_sleep" in xml_content
+
+
+def test_generate_html_report(tmp_path: Path):
+    flow_file = tmp_path / "flow.yaml"
+    flow_file.write_text("appId: com.demo\n---\n- sleep: 100\n")
+    driver = FakeDriver()
+    runner = FlowRunner(driver, artifacts_dir=tmp_path / "artifacts")
+    res = runner.run(flow_file)
+
+    html_dest = tmp_path / "report.html"
+    out = generate_html_report(res, html_dest)
+    assert out.is_file()
+    html_content = out.read_text(encoding="utf-8")
+    assert "AndroFlow" in html_content
+    assert "Test Report" in html_content
+    assert "flow.yaml" in html_content
+    assert "sleep" in html_content

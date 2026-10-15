@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import contextlib
 import re
 import shlex
+import signal
 import subprocess
 import time
 import unicodedata
 import xml.etree.ElementTree as ET
-from collections.abc import Sequence
+from collections.abc import Generator, Sequence
 from pathlib import Path
 
 
@@ -45,12 +47,12 @@ class AndroidDriver:
         self.adb_path = adb_path
         self._cached_screen_size: tuple[int, int] | None = None
 
+    def _base_cmd(self) -> list[str]:
+        return [self.adb_path, "-s", self.serial] if self.serial else [self.adb_path]
+
     def _run(self, args: Sequence[str], *, timeout: float = 30) -> bytes:
         """Executa o adb e devolve o stdout bruto (bytes)."""
-        cmd = [self.adb_path]
-        if self.serial:
-            cmd += ["-s", self.serial]
-        cmd += list(args)
+        cmd = self._base_cmd() + list(args)
         try:
             result = subprocess.run(
                 cmd, capture_output=True, timeout=timeout, check=False
@@ -313,3 +315,49 @@ class AndroidDriver:
         self.shell(
             "am", "broadcast", "-a", "android.intent.action.CLOSE_SYSTEM_DIALOGS"
         )
+
+    def start_recording(
+        self, remote_path: str = "/sdcard/androflow_record.mp4"
+    ) -> subprocess.Popen[bytes]:
+        """Inicia a gravação da tela do dispositivo via ADB screenrecord."""
+        cmd = self._base_cmd() + ["shell", "screenrecord", remote_path]
+        return subprocess.Popen(
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+
+    def stop_recording(
+        self,
+        process: subprocess.Popen[bytes],
+        destination: str | Path,
+        remote_path: str = "/sdcard/androflow_record.mp4",
+    ) -> Path | None:
+        """Encerra a gravação de tela, faz o pull do vídeo e limpa o dispositivo."""
+        path = Path(destination)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            process.send_signal(signal.SIGINT)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.terminate()
+                process.wait(timeout=2)
+            time.sleep(0.5)
+            self._run(["pull", remote_path, str(path)], timeout=30)
+            self.shell("rm", "-f", remote_path)
+            return path if path.is_file() and path.stat().st_size > 0 else None
+        except Exception:
+            return None
+
+    @contextlib.contextmanager
+    def record_screen(
+        self,
+        destination: str | Path,
+        remote_path: str = "/sdcard/androflow_record.mp4",
+    ) -> Generator[Path, None, None]:
+        """Context manager para gravar a tela durante um bloco de código."""
+        dest = Path(destination)
+        proc = self.start_recording(remote_path=remote_path)
+        try:
+            yield dest
+        finally:
+            self.stop_recording(proc, dest, remote_path=remote_path)

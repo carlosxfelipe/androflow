@@ -1,4 +1,6 @@
 import shlex
+from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -185,3 +187,22 @@ def test_wake_up_and_dismiss_system_dialogs(driver: AndroidDriver):
     assert driver.calls == [
         ("am", "broadcast", "-a", "android.intent.action.CLOSE_SYSTEM_DIALOGS"),
     ]
+
+
+def test_start_and_stop_recording(
+    driver: AndroidDriver, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    mock_proc = MagicMock()
+    monkeypatch.setattr("subprocess.Popen", lambda *args, **kwargs: mock_proc)
+    monkeypatch.setattr(driver, "_run", lambda *args, **kwargs: b"pulled")
+
+    proc = driver.start_recording()
+    assert proc == mock_proc
+
+    dest = tmp_path / "video.mp4"
+    dest.write_bytes(b"dummy mp4 data")
+
+    res = driver.stop_recording(proc, dest)
+    assert res == dest
+    mock_proc.send_signal.assert_called_once()
+    assert ("rm", "-f", "/sdcard/androflow_record.mp4") in driver.calls
