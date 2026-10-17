@@ -84,8 +84,13 @@ Com o emulador ou celular conectado via depuração USB:
 # 1. Confirme que o dispositivo aparece como 'device'
 androflow devices
 
-# 2. Execute o fluxo
+# 2. Execute um fluxo individual
 androflow test flows/meu_teste.yaml
+
+# 3. Ou execute múltiplos fluxos em lote (glob ou diretório) em um único comando
+androflow test flows/meu_teste.yaml flows/outro_teste.yaml
+androflow test flows/*.yaml
+androflow test flows/
 ```
 
 ---
@@ -93,6 +98,17 @@ androflow test flows/meu_teste.yaml
 ## Exemplos de fluxo (Inclusos neste repositório)
 
 Caso você tenha clonado o repositório do AndroFlow para explorar os exemplos nativos focados no aplicativo React Native / Expo (`expo-demo`):
+
+- **Execução de todos os fluxos do Expo em um único comando:**
+  Execute a suite completa (Tour de navegação, formulários interativos e regressão E2E completa) em sequência com resumo consolidado:
+
+  ```bash
+  uv run androflow test flows/expo_tour.yaml flows/expo_interactive.yaml flows/expo_e2e_full.yaml
+
+  # Ou de forma concisa via glob / diretório:
+  uv run androflow test flows/expo_*.yaml
+  uv run androflow test flows/
+  ```
 
 - **Tour de navegação e componentes expansíveis (`flows/expo_tour.yaml`):**
   Navega entre abas via Expo Router (`Home` <-> `Explore`), testa componentes expansíveis (Accordions com `react-native-reanimated`), rolagem inteligente até o final com `scrollUntilVisible`, gestos de deslize (`swipe`) para retornar ao topo e captura de telas:
@@ -289,6 +305,9 @@ Gere relatórios completos com um único comando ou parâmetros específicos:
 ```bash
 # Gera automaticamente tanto o HTML quanto o JUnit XML na pasta artifacts/:
 uv run androflow test flow.yaml --report
+
+# Executa uma suite inteira com geração de relatórios:
+uv run androflow test flows/ --report
 
 # Ou defina caminhos customizados:
 uv run androflow test flow.yaml --report-junit test-results/junit.xml --report-html artifacts/index.html

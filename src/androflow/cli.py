@@ -50,7 +50,10 @@ def devices(ctx: typer.Context) -> None:
 @app.command("test")
 def test_flow(
     ctx: typer.Context,
-    flow: Annotated[Path, typer.Argument(help="Caminho do arquivo YAML.")],
+    flows: Annotated[
+        list[Path],
+        typer.Argument(help="Caminho do(s) arquivo(s) YAML ou diretório."),
+    ],
     disable_animations: Annotated[
         bool,
         typer.Option(
@@ -96,7 +99,7 @@ def test_flow(
         ),
     ] = None,
 ) -> None:
-    """Executa um fluxo YAML."""
+    """Executa um ou mais fluxos YAML de teste."""
     driver: AndroidDriver = ctx.obj["driver"]
     if disable_animations and hasattr(driver, "disable_animations"):
         typer.echo("Desativando animações do Android via ADB...")
@@ -115,21 +118,51 @@ def test_flow(
             else:
                 cli_env[item.strip()] = os.environ.get(item.strip(), "")
 
+    target_files: list[Path] = []
+    for item in flows:
+        if item.is_dir():
+            target_files.extend(sorted(item.glob("*.yaml")))
+            target_files.extend(sorted(item.glob("*.yml")))
+        else:
+            target_files.append(item)
+
+    if not target_files:
+        typer.echo("Nenhum arquivo de fluxo (.yaml/.yml) encontrado.", err=True)
+        raise typer.Exit(1)
+
     runner = FlowRunner(driver, env=cli_env, echo=typer.echo)
-    try:
-        result = runner.run(flow, record=record)
-    except (AndroidError, FlowError) as exc:
-        typer.echo(f"Erro: {exc}", err=True)
-        raise typer.Exit(1) from exc
+    results = []
+    has_failure = False
 
-    if report_junit:
-        generate_junit_xml(result, report_junit)
-        typer.echo(f"Relatório JUnit XML gerado em: {report_junit}")
-    if report_html:
-        generate_html_report(result, report_html)
-        typer.echo(f"Relatório HTML interativo gerado em: {report_html}")
+    for flow in target_files:
+        try:
+            result = runner.run(flow, record=record)
+            results.append(result)
+            if not result.ok:
+                has_failure = True
+        except (AndroidError, FlowError) as exc:
+            typer.echo(f"Erro ao executar {flow}: {exc}", err=True)
+            has_failure = True
+            break
 
-    raise typer.Exit(0 if result.ok else 1)
+    last_result = results[-1] if results else None
+    if last_result is not None:
+        if report_junit:
+            generate_junit_xml(last_result, report_junit)
+            typer.echo(f"Relatório JUnit XML gerado em: {report_junit}")
+        if report_html:
+            generate_html_report(last_result, report_html)
+            typer.echo(f"Relatório HTML interativo gerado em: {report_html}")
+
+    if len(target_files) > 1:
+        passed_count = sum(1 for r in results if r.ok)
+        total_count = len(target_files)
+        typer.echo(
+            f"\nResumo da Suite: {passed_count}/{total_count} "
+            "flow(s) passaram com sucesso."
+        )
+
+    raise typer.Exit(1 if has_failure else 0)
 
 
 if __name__ == "__main__":

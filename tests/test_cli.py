@@ -69,3 +69,30 @@ def test_cli_test_with_record_and_reports(tmp_path: Path, monkeypatch):
     mock_run.assert_called_once_with(flow_file, record=True)
     mock_junit.assert_called_once()
     mock_html.assert_called_once()
+
+
+def test_cli_test_multiple_flows_and_directory(tmp_path: Path, monkeypatch):
+    flow1 = tmp_path / "flow1.yaml"
+    flow1.write_text("appId: com.demo\n---\n- sleep: 100\n")
+    flow2 = tmp_path / "flow2.yaml"
+    flow2.write_text("appId: com.demo\n---\n- sleep: 100\n")
+
+    mock_driver = MagicMock()
+    mock_run = MagicMock(return_value=FlowResult(path=flow1, total=1))
+
+    monkeypatch.setattr("androflow.cli.AndroidDriver", lambda serial=None: mock_driver)
+    monkeypatch.setattr("androflow.cli.FlowRunner.run", mock_run)
+
+    # Testa passando múltiplos arquivos
+    result = runner.invoke(app, ["test", str(flow1), str(flow2)])
+    assert result.exit_code == 0
+    assert mock_run.call_count == 2
+    assert "Resumo da Suite: 2/2 flow(s)" in result.stdout
+
+    mock_run.reset_mock()
+
+    # Testa passando o diretório
+    result_dir = runner.invoke(app, ["test", str(tmp_path)])
+    assert result_dir.exit_code == 0
+    assert mock_run.call_count == 2
+    assert "Resumo da Suite: 2/2 flow(s)" in result_dir.stdout
