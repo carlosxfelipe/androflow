@@ -1,0 +1,109 @@
+# Teste de Interação e Estados em React Native / Expo
+#
+# Demonstração de recursos do AndroFlow no app expo-demo:
+# - Foco automático e digitação em TextInput (inputText)
+# - Transliteração de caracteres acentuados (transliterate: true)
+# - Edição de texto e limpeza de campos (eraseText)
+# - Fechamento do teclado virtual (hideKeyboard)
+# - Toques em botões por testID (tapOn: { id: "btn_increment" })
+# - Repetições de comandos (repeat)
+# - Validações visuais condicionais (assertVisible e assertNotVisible)
+# - Captura de telas em artifacts/ (takeScreenshot)
+#
+# Execução no Expo Go (padrão):
+#   uv run androflow test flows/expo_interactive.yaml
+#
+# Execução em APK Standalone / Dev Client:
+#   uv run androflow test flows/expo_interactive.yaml -e APP_ID=com.anonymous.expodemo -e STOP_APP=true
+
+appId: ${APP_ID:-host.exp.exponent}
+disableAnimations: true
+wakeUp: true
+
+env:
+  TEST_NAME: "Carlos Felipe"
+  UPDATED_NAME: "AndroFlow E2E"
+
+---
+# 1. Garante tela acordada e estabilidade
+- wakeUp
+- dismissSystemDialogs
+
+# 2. Garante que está na aba Home e valida a seção do playground
+- tapOn:
+    contentDesc: "Home"
+
+- assertVisible: "AndroFlow Playground"
+- takeScreenshot: "01-playground-inicial"
+
+# 4. Digitação com foco automático e transliteração no TextInput
+- tapOn:
+    id: "input_user_name"
+- eraseText: 50
+- inputText:
+    text: "${TEST_NAME}"
+    transliterate: true
+
+# Fecha o teclado para desobstruir os elementos inferiores
+- hideKeyboard
+- sleep: "300ms"
+
+# 5. Valida atualização dinâmica do estado na UI (preview)
+- assertVisible:
+    text: "Digitado: ${TEST_NAME}"
+    contains: true
+
+- takeScreenshot: "02-texto-digitado"
+
+# 6. Edição de texto: apaga caracteres e digita novo conteúdo
+- tapOn:
+    id: "input_user_name"
+- eraseText: 25
+- inputText:
+    text: "${UPDATED_NAME}"
+    transliterate: true
+- hideKeyboard
+- sleep: "300ms"
+
+- assertVisible:
+    text: "Digitado: ${UPDATED_NAME}"
+    contains: true
+
+- takeScreenshot: "03-texto-editado"
+
+# 8. Testa contador interativo: estado inicial
+- assertVisible: "Contador: 0"
+- assertNotVisible: "Zerar"
+
+# 9. Incrementa o contador
+- tapOn:
+    id: "btn_increment"
+
+- assertVisible: "Contador: 1"
+- assertVisible: "Zerar"
+
+# 10. Testa repetição de toques (repeat)
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          id: "btn_increment"
+      - sleep: "200ms"
+
+- assertVisible: "Contador: 4"
+- takeScreenshot: "04-contador-incrementado"
+
+# 11. Decrementa contador
+- tapOn:
+    id: "btn_decrement"
+
+- assertVisible: "Contador: 3"
+
+# 12. Reseta o contador e valida que o botão Zerar sumiu
+- tapOn:
+    id: "btn_reset_counter"
+
+- assertVisible: "Contador: 0"
+- assertNotVisible: "Zerar"
+
+- takeScreenshot: "05-contador-zerado"

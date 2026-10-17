@@ -92,33 +92,33 @@ androflow test flows/meu_teste.yaml
 
 ## Exemplos de fluxo (Inclusos neste repositório)
 
-Caso você tenha clonado o repositório do AndroFlow para explorar os exemplos nativos:
+Caso você tenha clonado o repositório do AndroFlow para explorar os exemplos nativos focados no aplicativo React Native / Expo (`expo-demo`):
 
-- **Busca simples:**
+- **Tour de navegação e componentes expansíveis (`flows/expo_tour.yaml`):**
+  Navega entre abas via Expo Router (`Home` <-> `Explore`), testa componentes expansíveis (Accordions com `react-native-reanimated`), rolagem inteligente até o final com `scrollUntilVisible`, gestos de deslize (`swipe`) para retornar ao topo e captura de telas:
 
   ```bash
-  androflow test flows/settings_search.yaml
+  androflow test flows/expo_tour.yaml
   ```
 
-  _(Requer emulador em inglês `en-US`)._
-
-- **Recursos avançados** (rolagem, gestos `swipe`, repetição `repeat`, regex, foco automático, transliteração, `eraseText` e `hideKeyboard`):
+- **Interatividade, formulários e contadores (`flows/expo_interactive.yaml`):**
+  Entrada de texto com foco automático (`inputText`), transliteração de caracteres acentuados (`transliterate: true`), limpeza de campos (`eraseText`), fechamento do teclado (`hideKeyboard`), contadores com repetição (`repeat`) e asserções dinâmicas (`assertVisible` / `assertNotVisible`):
 
   ```bash
-  androflow test flows/settings_advanced.yaml
+  androflow test flows/expo_interactive.yaml
   ```
 
-  _(Requer emulador em português `pt-BR`)._
+- **Suite E2E completa com relatórios e gravação de vídeo (`flows/expo_e2e_full.yaml`):**
+  Regressão ponta a ponta integrando todos os fluxos com geração automática de relatório HTML interativo, JUnit XML e gravação de vídeo `.mp4` em `artifacts/`:
 
-- **Variáveis de ambiente, relatórios e gravação de vídeo:**
   ```bash
-  androflow test flows/features_showcase.yaml --report --record
+  androflow test flows/expo_e2e_full.yaml --report --record
   ```
 
 Se houver mais de um dispositivo conectado, informe o serial com `--serial`:
 
 ```bash
-androflow --serial emulator-5554 test flows/settings_search.yaml
+androflow --serial emulator-5554 test flows/expo_tour.yaml
 ```
 
 ## Documentação e Guias

@@ -1,0 +1,143 @@
+# Suite Completa E2E - Expo Demo App
+#
+# Fluxo completo de ponta a ponta combinando:
+# 1. Validação de inicialização e tela Home
+# 2. Testes de formulário e interatividade (TextInput, eraseText, hideKeyboard, contadores)
+# 3. Navegação entre abas via Expo Router
+# 4. Validação de Accordions / Collapsibles (reanimated)
+# 5. Rotação/Rolagem de lista longa com scrollUntilVisible e swipe
+# 6. Auditoria com screenshots em cada fase
+#
+# Executar com relatório visual HTML e gravação de vídeo:
+#   uv run androflow test flows/expo_e2e_full.yaml --report --record
+
+appId: ${APP_ID:-host.exp.exponent}
+disableAnimations: true
+wakeUp: true
+
+env:
+  USER_INPUT: "São Paulo - Teste AndroFlow"
+  VERIFIED_INPUT: "Sao Paulo - Teste AndroFlow"
+
+---
+# === ETAPA 1: Preparação e Estabilidade ===
+- wakeUp
+- dismissSystemDialogs
+
+# === ETAPA 2: Validação da Tela Home ===
+# (Para testar em APK standalone, adicione: - launchApp: { appId: "com.anonymous.expodemo" })
+- assertVisible:
+    text: "Welcome to"
+    contains: true
+
+- assertVisible: "AndroFlow Playground"
+- takeScreenshot: "e2e-01-home"
+
+# === ETAPA 3: Testes de Entrada de Texto e Estado ===
+- tapOn:
+    id: "input_user_name"
+- eraseText: 50
+- inputText:
+    id: "input_user_name"
+    text: "${USER_INPUT}"
+    transliterate: true
+
+- hideKeyboard
+- sleep: "300ms"
+
+- assertVisible:
+    text: "${VERIFIED_INPUT}"
+    contains: true
+
+# Apaga parte do texto e redigita
+- tapOn:
+    id: "input_user_name"
+- eraseText: 20
+- inputText: "Mobile E2E"
+- hideKeyboard
+- sleep: "300ms"
+
+- assertVisible:
+    text: "Sao Paulo - Mobile E2E"
+    contains: true
+
+- takeScreenshot: "e2e-02-input-concluido"
+
+# === ETAPA 4: Teste de Contadores e Ações ===
+- assertVisible: "Contador: 0"
+
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          id: "btn_increment"
+      - sleep: "150ms"
+
+- assertVisible: "Contador: 3"
+- assertVisible: "Zerar"
+
+- tapOn:
+    id: "btn_reset_counter"
+
+- assertVisible: "Contador: 0"
+- assertNotVisible: "Zerar"
+- takeScreenshot: "e2e-03-contador-zerado"
+
+# === ETAPA 5: Navegação para Explore ===
+- tapOn:
+    contentDesc: "Explore"
+
+- waitFor:
+    id: "txt_explore_title"
+    timeout: 5000
+
+- assertVisible: "Expo documentation"
+- takeScreenshot: "e2e-04-explore"
+
+# === ETAPA 6: Accordions / Componentes Dinâmicos ===
+- assertNotVisible:
+    text: "This app has two screens"
+    contains: true
+
+- tapOn: "File-based routing"
+
+- assertVisible:
+    text: "This app has two screens"
+    contains: true
+
+- takeScreenshot: "e2e-05-accordion-aberto"
+
+- tapOn: "File-based routing"
+
+- assertNotVisible:
+    text: "This app has two screens"
+    contains: true
+
+# === ETAPA 7: Rolagem Avançada e Validações Finais ===
+- scrollUntilVisible:
+    text: "Animations"
+    direction: DOWN
+    maxScrolls: 5
+
+- tapOn: "Animations"
+
+- assertVisible:
+    text: "react-native-reanimated"
+    contains: true
+
+- takeScreenshot: "e2e-06-animacoes"
+
+# === ETAPA 8: Retorno e Conclusão ===
+- swipe:
+    direction: UP
+
+- sleep: "300ms"
+
+- tapOn:
+    contentDesc: "Home"
+
+- waitFor:
+    text: "Welcome to"
+    contains: true
+
+- takeScreenshot: "e2e-07-fim"

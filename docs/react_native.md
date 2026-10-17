@@ -102,20 +102,74 @@ Elementos de texto direto podem ser selecionados tanto pelo conteúdo exato quan
 ```
 
 > **Atenção:** Evite aninhamentos complexos de `<Text>` com interpolações fragmentadas se pretender buscar pelo texto completo, pois dependendo da versão do React Native eles podem ser quebrados em nós adjacentes.
+>
+> **Caracteres Não-Quebráveis (`&nbsp;`):** Textos gerados com entidades como `&nbsp;` contêm o caractere Unicode `\u00a0` (espaço não-quebrável). Uma busca exata por `"Welcome to Expo"` falhará porque o espaço ASCII difere de `\u00a0`. Nesses casos, prefira `testID`, use correspondência parcial (`contains: true`) ou expressão regular:
+>
+> ```yaml
+> - assertVisible:
+>     text: "Welcome to"
+>     contains: true
+> ```
+
+---
+
+### 2.5 Expo Router e Abas Nativas (`NativeTabs` / `contentDesc`)
+
+Em aplicações Expo utilizando o **Expo Router** com abas nativas (`expo-router/native-tabs` ou `<NativeTabs.Trigger>`):
+
+- O Android renderiza os botões da barra inferior (`BottomNavigation`) atribuindo o nome da aba ao atributo de acessibilidade nativo `content-desc`, e **não** como texto puro (`text`).
+- Portanto, para alternar entre abas, utilize o seletor `contentDesc`:
+
+```yaml
+# Correto para Expo Router / NativeTabs:
+- tapOn:
+    contentDesc: "Explore"
+
+- tapOn:
+    contentDesc: "Home"
+```
 
 ---
 
 ## 3. Escrita de Fluxos YAML no AndroFlow
 
-### 3.1 Identificador do pacote (`appId`)
+### 3.1 Identificador do pacote (`appId`) e Expo Go vs Standalone
 
 Certifique-se de que o `appId` no cabeçalho do arquivo YAML corresponda exatamente ao `applicationId` definido no arquivo `android/app/build.gradle` (ou `app.json` no Expo):
 
 ```yaml
-appId: com.suaempresa.seuapp
+appId: ${APP_ID:-host.exp.exponent}
 ---
-- launchApp
 ```
+
+#### Dicas importantes para projetos Expo:
+
+1. **Configuração de package no `app.json`:**
+   Projetos criados com `create-expo-app` frequentemente vêm sem a propriedade `package` explícita em `android`. Para builds de produção, EAS ou prebuild, defina em `app.json`:
+
+   ```json
+   {
+     "expo": {
+       "android": {
+         "package": "com.suaempresa.seuapp"
+       }
+     }
+   }
+   ```
+
+2. **Diferença entre Expo Go e Standalone APK:**
+   - **No Expo Go:** O pacote nativo no Android é sempre `host.exp.exponent`. O comando nativo `monkey` acionado por `launchApp` abre o menu/launcher de projetos do Expo Go. Durante o desenvolvimento ativo com Metro, se o app já estiver em tela, inicie o fluxo diretamente com `wakeUp` e asserções sem chamar `launchApp`, ou utilize deep links com `- openLink: "exp://..."`.
+   - **Em Standalone APK / Dev Client:** O comando `- launchApp` inicia diretamente a tela principal do seu aplicativo.
+
+3. **Variáveis de ambiente dinâmicas:**
+   Parametrize o fluxo para alternar entre Expo Go e Standalone APK sem precisar alterar o código YAML:
+   ```yaml
+   appId: ${APP_ID:-host.exp.exponent}
+   ```
+   E para executar contra um APK standalone:
+   ```bash
+   androflow test flows/meu_fluxo.yaml -e APP_ID="com.suaempresa.seuapp"
+   ```
 
 ---
 
@@ -159,7 +213,6 @@ No modo de desenvolvimento (Debug com Metro bundler), o aplicativo pode demorar 
 - Configure um `waitFor` com tempo suficiente para aguardar o primeiro elemento da tela inicial:
 
 ```yaml
-- launchApp
 - waitFor:
     resourceId: "screen_home"
     timeout: 15000 # ou timeout: "15s"
@@ -169,17 +222,28 @@ No modo de desenvolvimento (Debug com Metro bundler), o aplicativo pode demorar 
 
 ---
 
-### 3.4 Fechando o teclado virtual (`hideKeyboard`)
+### 3.4 Fechando o teclado virtual (`hideKeyboard`) e desobstrução de tela
 
-Em telas com botões inferiores (ex.: "Continuar" ou "Entrar"), o teclado virtual do Android pode sobrepor o elemento clicável. Use o comando `hideKeyboard` (ou `back`) para recolher o teclado antes de tocar no botão:
+Em telas com campos de texto e elementos logo abaixo (botões "Continuar", mensagens de preview dinâmico ou contadores), o teclado virtual do Android pode sobrepor o elemento ou comprimir o container (`y2 <= y1`).
+
+Quando isso ocorre, a hierarquia XML do Android considera o elemento abaixo como não-visível (`visible=false`), fazendo com que asserções ou toques falhem mesmo que o componente esteja montado no React.
+
+**Boas práticas:**
+
+1. Sempre execute `- hideKeyboard` logo após digitar dados em um formulário antes de tentar validar textos ou tocar em botões inferiores.
+2. Certifique-se de envolver formulários dentro de um `<ScrollView>` para garantir rolagem suave e evitar que o teclado corte a visualização dos campos.
 
 ```yaml
-- inputText:
-    id: "input_senha"
-    text: "segredo123"
-- hideKeyboard
 - tapOn:
-    id: "btn_login"
+    id: "input_nome"
+- inputText:
+    text: "Carlos Felipe"
+    transliterate: true
+- hideKeyboard
+- sleep: "300ms"
+- assertVisible: "Digitado: Carlos Felipe"
+- tapOn:
+    id: "btn_salvar"
 ```
 
 ---

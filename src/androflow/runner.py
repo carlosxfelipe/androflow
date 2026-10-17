@@ -635,14 +635,19 @@ class FlowRunner:
                 "launchApp: use '- launchApp', '- launchApp: <appId>' "
                 "ou '- launchApp: {appId: ..., stopApp: true, clearState: false}'."
             )
+
+        def _parse_bool(val: Any, field_name: str) -> bool:
+            if isinstance(val, bool):
+                return val
+            if isinstance(val, str) and val.lower() in ("true", "false"):
+                return val.lower() == "true"
+            raise FlowError(f"launchApp: {field_name} deve ser true ou false.")
+
+        stop_app = _parse_bool(stop_app, "stopApp")
+        clear_state = _parse_bool(clear_state, "clearState")
+        wake_up = _parse_bool(wake_up, "wakeUp")
         if not package:
             raise FlowError("launchApp: informe appId no cabeçalho do fluxo.")
-        if not isinstance(stop_app, bool):
-            raise FlowError("launchApp: stopApp deve ser true ou false.")
-        if not isinstance(clear_state, bool):
-            raise FlowError("launchApp: clearState deve ser true ou false.")
-        if not isinstance(wake_up, bool):
-            raise FlowError("launchApp: wakeUp deve ser true ou false.")
         return str(package), stop_app, clear_state, permissions, wake_up
 
     def _screenshot_path(self, value: Any) -> Path:

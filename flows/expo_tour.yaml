@@ -1,0 +1,110 @@
+# Tour Completo pelo App Expo Demo (React Native)
+#
+# Demonstração de recursos de navegação e interface do AndroFlow:
+# - Transição entre abas (Home <-> Explore)
+# - Validação de hierarquia e componentes visíveis (assertVisible)
+# - Interação com Accordions/Collapsibles (expansão e fechamento)
+# - Validação de componentes recolhidos (assertNotVisible)
+# - Rolagem automática inteligente até elemento desejado (scrollUntilVisible)
+# - Gestos de deslize para rolagem rápida (swipe)
+# - Captura de telas para relatório de auditoria (takeScreenshot)
+#
+# Execução no Expo Go:
+#   uv run androflow test flows/expo_tour.yaml
+#
+# Execução com gravação de vídeo e relatório HTML:
+#   uv run androflow test flows/expo_tour.yaml --report --record
+
+appId: ${APP_ID:-host.exp.exponent}
+disableAnimations: true
+wakeUp: true
+
+---
+# 1. Garante estabilidade: acorda a tela e remove eventuais alertas do sistema
+- wakeUp
+- dismissSystemDialogs
+
+# 2. Valida a tela inicial (Home) e elementos do template Expo
+# (Caso teste um APK standalone, adicione: - launchApp: { appId: "com.anonymous.expodemo" })
+- assertVisible:
+    text: "Welcome to"
+    contains: true
+
+- assertVisible: "GET STARTED"
+- assertVisible: "Try editing"
+- assertVisible: "src/app/index.tsx"
+
+- takeScreenshot: "tour-01-home"
+
+# 4. Navega para a aba Explore via contentDesc do NativeTabs
+- tapOn:
+    contentDesc: "Explore"
+
+- waitFor:
+    id: "txt_explore_title"
+    timeout: 5000
+
+- assertVisible:
+    id: "txt_explore_title"
+- assertVisible: "Expo documentation"
+
+- takeScreenshot: "tour-02-explore-inicial"
+
+# 5. Testa componente expansível (Collapsible / Accordion):
+# 5.1 Garante que o conteúdo interno está fechado inicialmente
+- assertNotVisible:
+    text: "This app has two screens"
+    contains: true
+
+# 5.2 Toca para expandir o Accordion
+- tapOn: "File-based routing"
+
+# 5.3 Valida que o conteúdo agora está visível
+- assertVisible:
+    text: "This app has two screens"
+    contains: true
+
+- assertVisible: "Learn more"
+- takeScreenshot: "tour-03-collapsible-aberto"
+
+# 5.4 Toca novamente para fechar e valida que sumiu
+- tapOn: "File-based routing"
+
+- assertNotVisible:
+    text: "This app has two screens"
+    contains: true
+
+# 6. Rola a tela até encontrar a seção final "Animations"
+- scrollUntilVisible:
+    text: "Animations"
+    direction: DOWN
+    maxScrolls: 5
+
+- takeScreenshot: "tour-04-explore-rolagem"
+
+# 7. Abre a seção Animations e valida menção ao react-native-reanimated
+- tapOn: "Animations"
+
+- assertVisible:
+    text: "react-native-reanimated"
+    contains: true
+
+- takeScreenshot: "tour-05-animacao-aberta"
+
+# 8. Retorna para o topo da tela com gesto de swipe
+- swipe:
+    direction: UP
+
+- sleep: "500ms"
+
+- assertVisible: "Expo documentation"
+
+# 9. Retorna para a aba Home
+- tapOn:
+    contentDesc: "Home"
+
+- waitFor:
+    text: "Welcome to"
+    contains: true
+
+- takeScreenshot: "tour-06-retorno-home"
