@@ -23,6 +23,8 @@ env:
 # === ETAPA 1: Preparação e Estabilidade ===
 - wakeUp
 - dismissSystemDialogs
+- tapOn:
+    contentDesc: "Home"
 
 # === ETAPA 2: Validação da Tela Home ===
 # (Para testar em APK standalone, adicione: - launchApp: { appId: "com.anonymous.expodemo" })
@@ -49,11 +51,11 @@ env:
     text: "${VERIFIED_INPUT}"
     contains: true
 
-# Apaga parte do texto e redigita
+# Apaga o texto e redigita
 - tapOn:
     id: "input_user_name"
-- eraseText: 20
-- inputText: "Mobile E2E"
+- eraseText: 50
+- inputText: "Sao Paulo - Mobile E2E"
 - hideKeyboard
 - sleep: "300ms"
 
@@ -126,6 +128,13 @@ env:
     contains: true
 
 - takeScreenshot: "e2e-06-animacoes"
+
+# Fecha Animations para manter o estado limpo
+- tapOn: "Animations"
+
+- assertNotVisible:
+    text: "react-native-reanimated"
+    contains: true
 
 # === ETAPA 8: Retorno e Conclusão ===
 - swipe:

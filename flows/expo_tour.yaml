@@ -23,6 +23,8 @@ wakeUp: true
 # 1. Garante estabilidade: acorda a tela e remove eventuais alertas do sistema
 - wakeUp
 - dismissSystemDialogs
+- tapOn:
+    contentDesc: "Home"
 
 # 2. Valida a tela inicial (Home) e elementos do template Expo
 # (Caso teste um APK standalone, adicione: - launchApp: { appId: "com.anonymous.expodemo" })
@@ -90,6 +92,13 @@ wakeUp: true
     contains: true
 
 - takeScreenshot: "tour-05-animacao-aberta"
+
+# 7.1 Fecha Animations para manter o estado limpo
+- tapOn: "Animations"
+
+- assertNotVisible:
+    text: "react-native-reanimated"
+    contains: true
 
 # 8. Retorna para o topo da tela com gesto de swipe
 - swipe:
