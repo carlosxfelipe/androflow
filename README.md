@@ -13,16 +13,58 @@ Um motor em Python de testes de interface Android dirigidos por YAML, usando `uv
 
 ## Instalação
 
+### Como ferramenta global via CLI (Recomendado)
+
+Você não precisa clonar este repositório nem escrever código Python para testar seus aplicativos. O AndroFlow funciona como uma ferramenta de linha de comando global (similar ao Maestro):
+
 ```bash
-uv sync
-uv run androflow devices
+uv tool install git+https://github.com/carlosxfelipe/androflow.git
 ```
 
-Confirme que o emulador aparece como `device` (e não `offline` ou `unauthorized`).
+> **Dica de PATH:** Se o comando `androflow` não for reconhecido logo após a instalação, execute `uv tool update-shell` para configurar seu terminal.
 
-## Exemplo de fluxo
+Para atualizar o AndroFlow no futuro com as últimas novidades do repositório:
 
-Veja o fluxo funcional em `flows/settings_search.yaml`:
+```bash
+uv tool upgrade androflow
+```
+
+---
+
+### Desenvolvimento local (Contribuidores)
+
+Para contribuir com o desenvolvimento do motor do AndroFlow ou executar os testes unitários da biblioteca:
+
+```bash
+git clone https://github.com/carlosxfelipe/androflow.git
+cd androflow
+uv sync
+```
+
+---
+
+## Como usar no seu projeto (Passo a Passo)
+
+O AndroFlow é **100% orientado a arquivos YAML declarativos via terminal**. Você **não precisa** escrever código Python nem utilizar scripts como `main.py`.
+
+### 1. Estrutura de pastas sugerida
+
+Na raiz do seu aplicativo (seja React Native, Flutter, Android nativo ou uma pasta dedicada a testes E2E), basta criar uma pasta para armazenar seus fluxos de teste:
+
+```text
+meu-projeto/
+├── flows/
+│   ├── login.yaml
+│   └── busca.yaml
+├── .env                  # (opcional) variáveis como senhas, URLs, etc.
+└── artifacts/            # (criada automaticamente pelo AndroFlow para prints, relatórios e vídeos)
+```
+
+> **Nota:** Não é necessário criar nenhum arquivo `.py`. O AndroFlow lê diretamente os arquivos `.yaml`.
+
+### 2. Crie seu primeiro fluxo de teste
+
+Crie por exemplo o arquivo `flows/meu_teste.yaml`:
 
 ```yaml
 appId: com.android.settings
@@ -30,45 +72,53 @@ appId: com.android.settings
 - launchApp
 - assertVisible: "Network & internet"
 - tapOn: "Search Settings"
-- waitFor:
-    resourceId: "open_search_view_edit_text"
-    timeout: 5000
-- inputText: "dark theme"
-- assertVisible: "Standard dark theme"
-- takeScreenshot: "settings-busca.png"
-- tapOn: "Dark theme"
-- assertVisible: "Appearance"
-- back
-- back
 ```
 
-Execute:
+_(Se seu emulador/dispositivo estiver em português, adapte o texto para `"Rede e internet"` e `"Pesquisar nas configurações"`)._
+
+### 3. Conecte o emulador e execute
+
+Com o emulador ou celular conectado via depuração USB:
 
 ```bash
-uv run androflow test flows/settings_search.yaml
+# 1. Confirme que o dispositivo aparece como 'device'
+androflow devices
+
+# 2. Execute o fluxo
+androflow test flows/meu_teste.yaml
 ```
 
-Para ver recursos avançados (rolagem, gestos `swipe`, repetição `repeat`, busca por `regex: true`, foco automático, transliteração de acentos, `eraseText` e `hideKeyboard`), execute o segundo fluxo:
+---
+
+## Exemplos de fluxo (Inclusos neste repositório)
+
+Caso você tenha clonado o repositório do AndroFlow para explorar os exemplos nativos:
+
+- **Busca simples:**
+
+  ```bash
+  androflow test flows/settings_search.yaml
+  ```
+
+  _(Requer emulador em inglês `en-US`)._
+
+- **Recursos avançados** (rolagem, gestos `swipe`, repetição `repeat`, regex, foco automático, transliteração, `eraseText` e `hideKeyboard`):
+
+  ```bash
+  androflow test flows/settings_advanced.yaml
+  ```
+
+  _(Requer emulador em português `pt-BR`)._
+
+- **Variáveis de ambiente, relatórios e gravação de vídeo:**
+  ```bash
+  androflow test flows/features_showcase.yaml --report --record
+  ```
+
+Se houver mais de um dispositivo conectado, informe o serial com `--serial`:
 
 ```bash
-uv run androflow test flows/settings_advanced.yaml
-```
-
-Para testar os recursos de **variáveis de ambiente, estabilidade ADB, relatórios e gravação**, execute o fluxo de vitrine:
-
-```bash
-uv run androflow test flows/features_showcase.yaml --report --record
-```
-
-> **Atenção ao idioma do dispositivo:** Como os fluxos de demonstração interagem com o app nativo de Configurações do Android, atente-se ao idioma configurado no aparelho:
->
-> - `flows/settings_search.yaml`: requer o emulador/dispositivo em **inglês** (`en-US`).
-> - `flows/settings_advanced.yaml`: requer o emulador/dispositivo em **português do Brasil** (`pt-BR`).
-
-Se houver mais de um dispositivo, informe o serial:
-
-```bash
-uv run androflow --serial emulator-5554 test flows/settings_search.yaml
+androflow --serial emulator-5554 test flows/settings_search.yaml
 ```
 
 ## Documentação e Guias
